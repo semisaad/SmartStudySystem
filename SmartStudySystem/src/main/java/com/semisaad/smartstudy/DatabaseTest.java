@@ -18,4 +18,5 @@ public class DatabaseTest {
             System.out.println("❌ Connection failed!");
             e.printStackTrace();
         }
+    }
 }
