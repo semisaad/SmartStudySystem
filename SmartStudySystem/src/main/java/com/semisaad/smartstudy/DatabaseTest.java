@@ -1,22 +1,16 @@
 package com.semisaad.smartstudy;
 
+import com.semisaad.smartstudy.database.DatabaseConnection;
 import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
 
 public class DatabaseTest {
     public static void main(String[] args) {
-        String url = "jdbc:postgresql://localhost:5432/smart_study_system";
-        String user = "saad";
-        String password = "saad210@khan";
+        System.out.println("Testing database connection...");
 
-        try {
-            Connection conn = DriverManager.getConnection(url, user, password);
+        if (DatabaseConnection.testConnection()) {
             System.out.println("✅ Database connected successfully!");
-            conn.close();
-        } catch (SQLException e) {
+        } else {
             System.out.println("❌ Connection failed!");
-            e.printStackTrace();
         }
     }
 }
