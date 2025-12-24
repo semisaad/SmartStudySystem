@@ -158,9 +158,10 @@ public class ReviewDAO {
      */
     public List<Integer> getDueQuestionIds(int userId) {
         List<Integer> questionIds = new ArrayList<>();
+
+        // Fixed query: Remove ORDER BY or include it in SELECT
         String sql = "SELECT DISTINCT question_id FROM reviews " +
-                "WHERE user_id = ? AND next_review_date <= CURRENT_DATE " +
-                "ORDER BY next_review_date";
+                "WHERE user_id = ? AND next_review_date <= CURRENT_DATE";
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
