@@ -1,0 +1,173 @@
+/* Global Styles */
+.root {
+    -fx-font-family: "System";
+    -fx-font-size: 14px;
+}
+
+.main-container {
+    -fx-background-color: #f5f7fa;
+}
+
+/* Sidebar */
+.sidebar {
+    -fx-background-color: #fafbfc;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 0 1 0 0;
+}
+
+.storage-card {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 4, 0, 0, 2);
+}
+
+.storage-label {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 13px;
+}
+
+.storage-progress {
+    -fx-accent: linear-gradient(to right, #3b82f6, #8b5cf6);
+}
+
+/* Navigation Buttons */
+.nav-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 15px;
+    -fx-padding: 12 16 12 16;
+    -fx-background-radius: 10;
+    -fx-cursor: hand;
+}
+
+.nav-button:hover {
+    -fx-background-color: white;
+    -fx-text-fill: #1f2937;
+}
+
+.nav-button-active {
+    -fx-background-color: #3b82f6;
+    -fx-text-fill: white;
+}
+
+/* Content Area */
+.content-area {
+    -fx-background-color: #f5f7fa;
+}
+
+.welcome-text {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 14px;
+}
+
+/* Stat Cards */
+.stat-card {
+    -fx-background-color: white;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 1;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+}
+
+.stat-label {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 13px;
+}
+
+.stat-change {
+    -fx-text-fill: #10b981;
+    -fx-font-size: 13px;
+}
+
+/* Topic Cards */
+.topic-card {
+    -fx-background-color: white;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 1;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0), 0, 0, 0, 0);
+}
+
+.topic-card:hover {
+    -fx-translate-y: -4;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 4);
+}
+
+.topic-icon {
+    -fx-background-radius: 12;
+    -fx-text-fill: white;
+}
+
+.topic-card-yellow .topic-icon {
+    -fx-background-color: linear-gradient(to bottom right, #fbbf24, #f59e0b);
+}
+
+.topic-card-blue .topic-icon {
+    -fx-background-color: linear-gradient(to bottom right, #3b82f6, #2563eb);
+}
+
+.topic-card-purple .topic-icon {
+    -fx-background-color: linear-gradient(to bottom right, #8b5cf6, #7c3aed);
+}
+
+.topic-card-cyan .topic-icon {
+    -fx-background-color: linear-gradient(to bottom right, #06b6d4, #0891b2);
+}
+
+.topic-card-pink .topic-icon {
+    -fx-background-color: linear-gradient(to bottom right, #ec4899, #db2777);
+}
+
+.topic-card-green .topic-icon {
+    -fx-background-color: linear-gradient(to bottom right, #10b981, #059669);
+}
+
+.topic-count {
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 13px;
+}
+
+/* Questions Table */
+.questions-table {
+    -fx-background-color: white;
+    -fx-background-radius: 12;
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 1;
+    -fx-border-radius: 12;
+}
+
+.table-header {
+    -fx-background-color: #f9fafb;
+    -fx-text-fill: #6b7280;
+    -fx-font-size: 13px;
+}
+
+.table-row {
+    -fx-border-color: #e5e7eb;
+    -fx-border-width: 1 0 0 0;
+    -fx-cursor: hand;
+}
+
+.table-row:hover {
+    -fx-background-color: #f9fafb;
+}
+
+/* Scroll Bar */
+.scroll-pane {
+    -fx-background-color: transparent;
+}
+
+.scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:vertical .track {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:vertical .thumb {
+    -fx-background-color: #cbd5e1;
+    -fx-background-radius: 4;
+}
