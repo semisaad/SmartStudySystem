@@ -20,6 +20,8 @@ import java.util.List;
 
 public class MainApp extends Application {
 
+    private VBox sidebar;
+    private Button activeNavButton;
     private BorderPane mainLayout;
     private StackPane contentArea;
     private StudySessionService studyService;
@@ -39,7 +41,7 @@ public class MainApp extends Application {
         mainLayout.getStyleClass().add("main-container");
 
         // Create sidebar
-        VBox sidebar = createSidebar();
+        sidebar = createSidebar();
         mainLayout.setLeft(sidebar);
 
         // Create content area
@@ -99,26 +101,45 @@ public class MainApp extends Application {
         navMenu.setPadding(new Insets(20, 0, 0, 0));
 
         Button homeBtn = createNavButton("🏠  Home", true);
-        homeBtn.setOnAction(e -> showDashboard());
+        homeBtn.setOnAction(e -> {
+            setActiveNavButton(homeBtn);
+            showDashboard();
+        });
 
         Button topicsBtn = createNavButton("📁  Topics", false);
-        topicsBtn.setOnAction(e -> showTopics());
+        topicsBtn.setOnAction(e -> {
+            setActiveNavButton(topicsBtn);
+            showTopics();
+        });
 
         Button questionsBtn = createNavButton("📄  Questions", false);
-        questionsBtn.setOnAction(e -> showQuestions());
+        questionsBtn.setOnAction(e -> {
+            setActiveNavButton(questionsBtn);
+            showQuestions();
+        });
 
         Button studyBtn = createNavButton("🎯  Study Session", false);
-        studyBtn.setOnAction(e -> showStudySession());
+        studyBtn.setOnAction(e -> {
+            setActiveNavButton(studyBtn);
+            showStudySession();
+        });
 
         Button statsBtn = createNavButton("📊  Statistics", false);
-        statsBtn.setOnAction(e -> showStatistics());
+        statsBtn.setOnAction(e -> {
+            setActiveNavButton(statsBtn);
+            showStatistics();
+        });
 
         Button settingsBtn = createNavButton("⚙️  Settings", false);
-        settingsBtn.setOnAction(e -> showSettings());
+        settingsBtn.setOnAction(e -> {
+            setActiveNavButton(settingsBtn);
+            showSettings();
+        });
 
         navMenu.getChildren().addAll(homeBtn, topicsBtn, questionsBtn, studyBtn, statsBtn, settingsBtn);
 
-        sidebar.getChildren().addAll(storageCard, navMenu);
+        // Set home button as initially active
+        activeNavButton = homeBtn;sidebar.getChildren().addAll(storageCard, navMenu);
 
         return sidebar;
     }
@@ -151,56 +172,56 @@ public class MainApp extends Application {
 
         header.getChildren().add(headerText);
 
-        // Stats cards
-        HBox statsRow = new HBox(20);
-
+        // Stats cards - fetch once
         var stats = studyService.getSessionStats(currentUserId);
 
+        HBox statsRow = new HBox(20);
         VBox dueCard = createStatCard("Due Today", String.valueOf(stats.getQuestionsDueToday()), "+3 from yesterday");
         VBox successCard = createStatCard("Success Rate", String.format("%.0f%%", stats.getSuccessRate()), "+5% this week");
         VBox totalCard = createStatCard("Total Reviews", String.valueOf(stats.getTotalReviews()), "Keep going! 🔥");
 
         statsRow.getChildren().addAll(dueCard, successCard, totalCard);
 
-        // Topics section
+        // Topics section header
         HBox topicsHeader = new HBox();
         topicsHeader.setAlignment(Pos.CENTER_LEFT);
         Label topicsTitle = new Label("Topics");
         topicsTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
         topicsHeader.getChildren().add(topicsTitle);
 
-        // Topics grid
+        // Topics grid - simplified
         FlowPane topicsGrid = new FlowPane(20, 20);
 
+        // Fetch topics once
         List<Topic> topics = topicDAO.getAll();
         String[] colors = {"yellow", "blue", "purple", "cyan", "pink", "green"};
         String[] icons = {"📦", "🔄", "🎯", "🗄️", "💻", "🌐"};
 
-        for (int i = 0; i < Math.min(topics.size(), 6); i++) {
+        // Limit to 4 topics for speed
+        for (int i = 0; i < Math.min(topics.size(), 4); i++) {
             Topic topic = topics.get(i);
+            // Get count asynchronously or cache it
             int questionCount = questionDAO.getByTopicId(topic.getId()).size();
             VBox topicCard = createTopicCard(topic.getName(), questionCount + " questions",
                     icons[i % icons.length], colors[i % colors.length]);
             topicsGrid.getChildren().add(topicCard);
         }
 
-        // Recent questions
+        // Recent questions header
         HBox questionsHeader = new HBox();
         questionsHeader.setAlignment(Pos.CENTER_LEFT);
         Label questionsTitle = new Label("Recent Questions");
         questionsTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
         questionsHeader.getChildren().add(questionsTitle);
 
-        VBox questionsTable = createQuestionsTable();
+        // Simplified questions table
+        VBox questionsTable = createSimpleQuestionsTable();
 
         dashboard.getChildren().addAll(header, statsRow, topicsHeader, topicsGrid, questionsHeader, questionsTable);
 
-        ScrollPane scrollPane = new ScrollPane(dashboard);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: transparent;");
-
+        // NO ScrollPane - just show content directly for speed
         contentArea.getChildren().clear();
-        contentArea.getChildren().add(scrollPane);
+        contentArea.getChildren().add(dashboard);
     }
 
     private VBox createStatCard(String label, String value, String change) {
@@ -246,9 +267,10 @@ public class MainApp extends Application {
         return card;
     }
 
-    private VBox createQuestionsTable() {
+    private VBox createSimpleQuestionsTable() {
         VBox table = new VBox();
         table.getStyleClass().add("questions-table");
+        table.setMaxHeight(300); // Limit height
 
         // Table header
         HBox header = new HBox();
@@ -260,16 +282,14 @@ public class MainApp extends Application {
         nameHeader.setPrefWidth(400);
         Label topicHeader = new Label("Topic");
         topicHeader.setPrefWidth(200);
-        Label reviewHeader = new Label("Next Review");
-        reviewHeader.setPrefWidth(150);
 
-        header.getChildren().addAll(new Label(""), nameHeader, topicHeader, reviewHeader);
+        header.getChildren().addAll(new Label(""), nameHeader, topicHeader);
 
-        // Table rows
+        // Table rows - ONLY 3 for speed
         VBox rows = new VBox();
 
         List<Question> questions = questionDAO.getAll();
-        for (int i = 0; i < Math.min(questions.size(), 5); i++) {
+        for (int i = 0; i < Math.min(questions.size(), 3); i++) {
             Question q = questions.get(i);
             Topic topic = topicDAO.getById(q.getTopicId());
 
@@ -281,17 +301,18 @@ public class MainApp extends Application {
             Label icon = new Label("📝");
             icon.setFont(Font.font(18));
 
-            Label name = new Label(q.getQuestionText());
+            // Truncate long questions
+            String questionText = q.getQuestionText();
+            if (questionText.length() > 50) {
+                questionText = questionText.substring(0, 50) + "...";
+            }
+            Label name = new Label(questionText);
             name.setPrefWidth(400);
-            name.setWrapText(true);
 
             Label topicName = new Label(topic != null ? topic.getName() : "Unknown");
             topicName.setPrefWidth(200);
 
-            Label nextReview = new Label("Tomorrow");
-            nextReview.setPrefWidth(150);
-
-            row.getChildren().addAll(icon, name, topicName, nextReview);
+            row.getChildren().addAll(icon, name, topicName);
             rows.getChildren().add(row);
         }
 
@@ -342,5 +363,18 @@ public class MainApp extends Application {
 
     public static void main(String[] args) {
         launch(args);
+    }
+
+    private void setActiveNavButton(Button button) {
+        // Remove active class from previous button
+        if (activeNavButton != null) {
+            activeNavButton.getStyleClass().remove("nav-button-active");
+        }
+
+        // Add active class to new button
+        button.getStyleClass().add("nav-button-active");
+
+        // Update the active button reference
+        activeNavButton = button;
     }
 }
