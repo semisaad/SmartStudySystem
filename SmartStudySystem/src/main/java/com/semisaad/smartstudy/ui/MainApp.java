@@ -9,8 +9,6 @@ import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
-import javafx.scene.control.*;
-import javafx.scene.layout.Priority;
 import javafx.stage.Modality;
 
 import com.semisaad.smartstudy.service.StudySessionService;
@@ -23,6 +21,10 @@ import com.semisaad.smartstudy.model.Topic;
 import com.semisaad.smartstudy.model.Question;
 
 import java.util.List;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MainApp extends Application {
 
@@ -33,9 +35,15 @@ public class MainApp extends Application {
     private StudySessionService studyService;
     private TopicDAO topicDAO;
     private QuestionDAO questionDAO;
+    private ReviewDAO reviewDAO;
+    private UserDAO userDAO;
     private int currentUserId = 1; // Using user ID 1 (saad)
     private List<Question> currentStudyQuestions;
     private int currentQuestionIndex = 0;
+
+    // Settings preferences
+    private int dailyGoalQuestions = 10;
+    private boolean dailyRemindersEnabled = true;
 
     @Override
     public void start(Stage primaryStage) {
@@ -43,6 +51,8 @@ public class MainApp extends Application {
         studyService = new StudySessionService();
         topicDAO = new TopicDAO();
         questionDAO = new QuestionDAO();
+        reviewDAO = new ReviewDAO();
+        userDAO = new UserDAO();
 
         // Create main layout
         mainLayout = new BorderPane();
@@ -80,32 +90,32 @@ public class MainApp extends Application {
     private VBox createSidebar() {
         VBox sidebar = new VBox(10);
         sidebar.getStyleClass().add("sidebar");
-        sidebar.setPrefWidth(260);
+        sidebar.setPrefWidth(280);
         sidebar.setPadding(new Insets(30, 20, 30, 20));
+        sidebar.setStyle(
+                "-fx-background-color: linear-gradient(to bottom, #1e293b, #0f172a); " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 15, 0, 5, 0);"
+        );
+
+        // Logo/Brand
+        VBox brandBox = new VBox(5);
+        brandBox.setAlignment(Pos.CENTER);
+        brandBox.setPadding(new Insets(0, 0, 20, 0));
+
+        Label brandIcon = new Label("🎓");
+        brandIcon.setFont(Font.font(40));
+
+        Label brandName = new Label("Smart Study");
+        brandName.setFont(Font.font("System", FontWeight.BOLD, 20));
+        brandName.setStyle("-fx-text-fill: white;");
+
+        brandBox.getChildren().addAll(brandIcon, brandName);
 
         // Storage info card
-        VBox storageCard = new VBox(8);
-        storageCard.getStyleClass().add("storage-card");
-        storageCard.setPadding(new Insets(20));
-
-        Label storageLabel = new Label("Study Progress");
-        storageLabel.getStyleClass().add("storage-label");
-
-        int totalQuestions = questionDAO.getCount();
-        int reviewedQuestions = studyService.getSessionStats(currentUserId).getTotalReviews();
-
-        Label storageText = new Label(reviewedQuestions + " / " + totalQuestions + " Questions");
-        storageText.setFont(Font.font("System", FontWeight.BOLD, 18));
-
-        ProgressBar progressBar = new ProgressBar();
-        progressBar.setProgress((double) reviewedQuestions / totalQuestions);
-        progressBar.setPrefWidth(200);
-        progressBar.getStyleClass().add("storage-progress");
-
-        storageCard.getChildren().addAll(storageLabel, storageText, progressBar);
+        VBox storageCard = createStorageCard();
 
         // Navigation menu
-        VBox navMenu = new VBox(4);
+        VBox navMenu = new VBox(6);
         navMenu.setPadding(new Insets(20, 0, 0, 0));
 
         Button homeBtn = createNavButton("🏠  Home", true);
@@ -147,180 +157,448 @@ public class MainApp extends Application {
         navMenu.getChildren().addAll(homeBtn, topicsBtn, questionsBtn, studyBtn, statsBtn, settingsBtn);
 
         // Set home button as initially active
-        activeNavButton = homeBtn;sidebar.getChildren().addAll(storageCard, navMenu);
+        activeNavButton = homeBtn;
+
+        // Bottom spacer
+        Region bottomSpacer = new Region();
+        VBox.setVgrow(bottomSpacer, Priority.ALWAYS);
+
+        // Version info
+        Label versionLabel = new Label("v1.0.0");
+        versionLabel.setStyle("-fx-text-fill: rgba(255,255,255,0.4); -fx-font-size: 11px;");
+        versionLabel.setAlignment(Pos.CENTER);
+        versionLabel.setMaxWidth(Double.MAX_VALUE);
+
+        sidebar.getChildren().addAll(brandBox, storageCard, navMenu, bottomSpacer, versionLabel);
 
         return sidebar;
     }
 
+    private VBox createStorageCard() {
+        VBox storageCard = new VBox(12);
+        storageCard.setPadding(new Insets(20));
+        storageCard.setStyle(
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" +
+                        "-fx-background-radius: 16;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
+        );
+
+        Label storageLabel = new Label("Study Progress");
+        storageLabel.setStyle("-fx-text-fill: rgba(255,255,255,0.9); -fx-font-size: 13px;");
+
+        int totalQuestions = questionDAO.getCount();
+        int reviewedQuestions = studyService.getSessionStats(currentUserId).getTotalReviews();
+
+        Label storageText = new Label(reviewedQuestions + " / " + totalQuestions);
+        storageText.setFont(Font.font("System", FontWeight.BOLD, 24));
+        storageText.setStyle("-fx-text-fill: white;");
+
+        Label storageSubtext = new Label("Questions Reviewed");
+        storageSubtext.setStyle("-fx-text-fill: rgba(255,255,255,0.8); -fx-font-size: 11px;");
+
+        ProgressBar progressBar = new ProgressBar();
+        progressBar.setProgress(totalQuestions > 0 ? (double) reviewedQuestions / totalQuestions : 0);
+        progressBar.setPrefWidth(220);
+        progressBar.setPrefHeight(6);
+        progressBar.setStyle(
+                "-fx-accent: white; " +
+                        "-fx-background-color: rgba(255,255,255,0.2); " +
+                        "-fx-background-radius: 3;"
+        );
+
+        storageCard.getChildren().addAll(storageLabel, storageText, storageSubtext, progressBar);
+
+        return storageCard;
+    }
+
+    private void refreshSidebar() {
+        // Update the storage card with fresh data
+        VBox newStorageCard = createStorageCard();
+
+        // Find and replace the old storage card (it's the second child after brandBox)
+        if (sidebar.getChildren().size() > 1) {
+            sidebar.getChildren().set(1, newStorageCard);
+        }
+    }
+
     private Button createNavButton(String text, boolean active) {
         Button btn = new Button(text);
-        btn.getStyleClass().add("nav-button");
-        if (active) {
-            btn.getStyleClass().add("nav-button-active");
-        }
-        btn.setPrefWidth(220);
+        btn.setPrefWidth(240);
+        btn.setPrefHeight(44);
         btn.setAlignment(Pos.CENTER_LEFT);
+        btn.setFont(Font.font("System", FontWeight.NORMAL, 14));
+
+        String baseStyle =
+                "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-padding: 0 0 0 20;";
+
+        if (active) {
+            btn.setStyle(baseStyle +
+                    "-fx-background-color: rgba(255,255,255,0.15); " +
+                    "-fx-text-fill: white; " +
+                    "-fx-font-weight: bold;"
+            );
+        } else {
+            btn.setStyle(baseStyle +
+                    "-fx-background-color: transparent; " +
+                    "-fx-text-fill: rgba(255,255,255,0.7);"
+            );
+        }
+
+        // Hover effects
+        btn.setOnMouseEntered(e -> {
+            if (!btn.getStyle().contains("font-weight: bold")) {
+                btn.setStyle(baseStyle +
+                        "-fx-background-color: rgba(255,255,255,0.1); " +
+                        "-fx-text-fill: white;"
+                );
+            }
+        });
+
+        btn.setOnMouseExited(e -> {
+            if (!btn.getStyle().contains("font-weight: bold")) {
+                btn.setStyle(baseStyle +
+                        "-fx-background-color: transparent; " +
+                        "-fx-text-fill: rgba(255,255,255,0.7);"
+                );
+            }
+        });
+
         return btn;
     }
 
     private void showDashboard() {
         VBox dashboard = new VBox(30);
-        dashboard.setPadding(new Insets(30, 40, 30, 40));
+        dashboard.setPadding(new Insets(40, 50, 40, 50));
+        dashboard.setStyle("-fx-background-color: #f8fafc;");
 
         // Header
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
 
-        VBox headerText = new VBox(5);
-        Label title = new Label("Home");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28));
-        Label welcome = new Label("👋 Hello Saad, welcome!");
-        welcome.getStyleClass().add("welcome-text");
+        VBox headerText = new VBox(8);
+        Label title = new Label("Dashboard");
+        title.setFont(Font.font("System", FontWeight.BOLD, 32));
+        title.setStyle("-fx-text-fill: #0f172a;");
+
+        com.semisaad.smartstudy.model.User user = userDAO.getById(currentUserId);
+        String username = user != null ? user.getUsername() : "User";
+
+        Label welcome = new Label("👋 Welcome back, " + username + "!");
+        welcome.setFont(Font.font(16));
+        welcome.setStyle("-fx-text-fill: #64748b;");
         headerText.getChildren().addAll(title, welcome);
 
-        header.getChildren().add(headerText);
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // Stats cards - fetch once
+        // Quick start study button
+        Button quickStudyBtn = new Button("🎯 Start Study Session");
+        quickStudyBtn.setPrefHeight(48);
+        quickStudyBtn.setPrefWidth(200);
+        quickStudyBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
+        quickStudyBtn.setStyle(
+                "-fx-background-color: linear-gradient(135deg, #10b981 0%, #059669 100%); " +
+                        "-fx-text-fill: white; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.4), 12, 0, 0, 4);"
+        );
+        quickStudyBtn.setOnAction(e -> showStudySession());
+
+        header.getChildren().addAll(headerText, spacer, quickStudyBtn);
+
+        // Stats cards
         var stats = studyService.getSessionStats(currentUserId);
+        int dueToday = stats.getQuestionsDueToday();
 
         HBox statsRow = new HBox(20);
-        VBox dueCard = createStatCard("Due Today", String.valueOf(stats.getQuestionsDueToday()), "+3 from yesterday");
-        VBox successCard = createStatCard("Success Rate", String.format("%.0f%%", stats.getSuccessRate()), "+5% this week");
-        VBox totalCard = createStatCard("Total Reviews", String.valueOf(stats.getTotalReviews()), "Keep going! 🔥");
+        VBox dueCard = createStatCard("⏰", "Due Today", String.valueOf(dueToday),
+                dueToday > 0 ? "Start studying!" : "All caught up!", "#3b82f6");
+        VBox successCard = createStatCard("✨", "Success Rate", String.format("%.0f%%", stats.getSuccessRate()),
+                "Keep improving!", "#10b981");
+        VBox totalCard = createStatCard("🔥", "Total Reviews", String.valueOf(stats.getTotalReviews()),
+                "Questions studied", "#f59e0b");
+        VBox streakCard = createStatCard("📅", "Study Streak", calculateStreak() + " days",
+                "Daily goal: " + dailyGoalQuestions + " questions", "#8b5cf6");
 
-        statsRow.getChildren().addAll(dueCard, successCard, totalCard);
+        statsRow.getChildren().addAll(dueCard, successCard, totalCard, streakCard);
 
-        // Topics section header
+        // Topics section
         HBox topicsHeader = new HBox();
         topicsHeader.setAlignment(Pos.CENTER_LEFT);
-        Label topicsTitle = new Label("Topics");
-        topicsTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
-        topicsHeader.getChildren().add(topicsTitle);
+        Label topicsTitle = new Label("Your Topics");
+        topicsTitle.setFont(Font.font("System", FontWeight.BOLD, 22));
+        topicsTitle.setStyle("-fx-text-fill: #0f172a;");
 
-        // Topics grid - simplified
+        Region topicSpacer = new Region();
+        HBox.setHgrow(topicSpacer, Priority.ALWAYS);
+
+        Button viewAllTopics = new Button("View All →");
+        viewAllTopics.setStyle(
+                "-fx-background-color: transparent; " +
+                        "-fx-text-fill: #667eea; " +
+                        "-fx-font-weight: bold; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-font-size: 14px;"
+        );
+        viewAllTopics.setOnAction(e -> showTopics());
+
+        topicsHeader.getChildren().addAll(topicsTitle, topicSpacer, viewAllTopics);
+
+        // Topics grid
         FlowPane topicsGrid = new FlowPane(20, 20);
 
-        // Fetch topics once
         List<Topic> topics = topicDAO.getAll();
-        String[] colors = {"yellow", "blue", "purple", "cyan", "pink", "green"};
+        String[] colors = {"#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4"};
         String[] icons = {"📦", "🔄", "🎯", "🗄️", "💻", "🌐"};
 
-        // Limit to 4 topics for speed
-        for (int i = 0; i < Math.min(topics.size(), 4); i++) {
-            Topic topic = topics.get(i);
-            // Get count asynchronously or cache it
-            int questionCount = questionDAO.getByTopicId(topic.getId()).size();
-            VBox topicCard = createTopicCard(topic.getName(), questionCount + " questions",
-                    icons[i % icons.length], colors[i % colors.length]);
-            topicsGrid.getChildren().add(topicCard);
+        if (topics.isEmpty()) {
+            VBox emptyTopics = createEmptyState(
+                    "📁",
+                    "No topics yet",
+                    "Create your first topic to start organizing",
+                    "Create Topic",
+                    () -> {
+                        showTopics();
+                        showAddTopicDialog();
+                    }
+            );
+            topicsGrid.getChildren().add(emptyTopics);
+        } else {
+            for (int i = 0; i < Math.min(topics.size(), 4); i++) {
+                Topic topic = topics.get(i);
+                int questionCount = questionDAO.getByTopicId(topic.getId()).size();
+                VBox topicCard = createTopicCard(topic.getName(), questionCount + " questions",
+                        icons[i % icons.length], colors[i % colors.length]);
+                topicsGrid.getChildren().add(topicCard);
+            }
         }
 
-        // Recent questions header
+        // Recent activity
         HBox questionsHeader = new HBox();
         questionsHeader.setAlignment(Pos.CENTER_LEFT);
-        Label questionsTitle = new Label("Recent Questions");
-        questionsTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
+        Label questionsTitle = new Label("Recent Activity");
+        questionsTitle.setFont(Font.font("System", FontWeight.BOLD, 22));
+        questionsTitle.setStyle("-fx-text-fill: #0f172a;");
         questionsHeader.getChildren().add(questionsTitle);
 
-        // Simplified questions table
         VBox questionsTable = createSimpleQuestionsTable();
 
         dashboard.getChildren().addAll(header, statsRow, topicsHeader, topicsGrid, questionsHeader, questionsTable);
 
-        // NO ScrollPane - just show content directly for speed
+        ScrollPane scrollPane = new ScrollPane(dashboard);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: #f8fafc; -fx-background-color: #f8fafc;");
+
         contentArea.getChildren().clear();
-        contentArea.getChildren().add(dashboard);
+        contentArea.getChildren().add(scrollPane);
     }
 
-    private VBox createStatCard(String label, String value, String change) {
-        VBox card = new VBox(8);
-        card.getStyleClass().add("stat-card");
-        card.setPadding(new Insets(20));
-        card.setPrefWidth(250);
+    private VBox createStatCard(String icon, String label, String value, String change, String accentColor) {
+        VBox card = new VBox(12);
+        card.setPadding(new Insets(24));
+        card.setPrefWidth(260);
+        card.setPrefHeight(140);
+        card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        );
+
+        Label iconLabel = new Label(icon);
+        iconLabel.setFont(Font.font(28));
+        iconLabel.setPrefSize(56, 56);
+        iconLabel.setAlignment(Pos.CENTER);
+        iconLabel.setStyle(
+                "-fx-background-color: " + accentColor + "1A; " +
+                        "-fx-background-radius: 14;"
+        );
 
         Label labelText = new Label(label);
-        labelText.getStyleClass().add("stat-label");
+        labelText.setFont(Font.font("System", FontWeight.NORMAL, 13));
+        labelText.setStyle("-fx-text-fill: #64748b;");
 
         Label valueText = new Label(value);
-        valueText.setFont(Font.font("System", FontWeight.BOLD, 32));
+        valueText.setFont(Font.font("System", FontWeight.BOLD, 36));
+        valueText.setStyle("-fx-text-fill: #0f172a;");
 
         Label changeText = new Label(change);
-        changeText.getStyleClass().add("stat-change");
+        changeText.setFont(Font.font(12));
+        changeText.setStyle("-fx-text-fill: " + accentColor + ";");
 
-        card.getChildren().addAll(labelText, valueText, changeText);
+        card.getChildren().addAll(iconLabel, labelText, valueText, changeText);
+
+        card.setOnMouseEntered(e -> {
+            card.setStyle(
+                    "-fx-background-color: white; " +
+                            "-fx-background-radius: 20; " +
+                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 20, 0, 0, 8); " +
+                            "-fx-cursor: hand;"
+            );
+        });
+
+        card.setOnMouseExited(e -> {
+            card.setStyle(
+                    "-fx-background-color: white; " +
+                            "-fx-background-radius: 20; " +
+                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+            );
+        });
 
         return card;
     }
 
     private VBox createTopicCard(String name, String count, String icon, String color) {
-        VBox card = new VBox(12);
-        card.getStyleClass().addAll("topic-card", "topic-card-" + color);
-        card.setPadding(new Insets(20));
-        card.setPrefWidth(200);
-        card.setPrefHeight(150);
+        VBox card = new VBox(14);
+        card.setPadding(new Insets(24));
+        card.setPrefWidth(240);
+        card.setPrefHeight(160);
+        card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        );
+
+        StackPane iconContainer = new StackPane();
+        iconContainer.setPrefSize(60, 60);
+        iconContainer.setStyle(
+                "-fx-background-color: linear-gradient(135deg, " + color + " 0%, " + color + "CC 100%); " +
+                        "-fx-background-radius: 16;"
+        );
 
         Label iconLabel = new Label(icon);
-        iconLabel.setFont(Font.font(24));
-        iconLabel.getStyleClass().add("topic-icon");
+        iconLabel.setFont(Font.font(30));
+        iconContainer.getChildren().add(iconLabel);
 
         Label nameLabel = new Label(name);
-        nameLabel.setFont(Font.font("System", FontWeight.BOLD, 15));
+        nameLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+        nameLabel.setStyle("-fx-text-fill: #0f172a;");
         nameLabel.setWrapText(true);
+        nameLabel.setMaxWidth(190);
 
         Label countLabel = new Label(count);
-        countLabel.getStyleClass().add("topic-count");
+        countLabel.setFont(Font.font(13));
+        countLabel.setStyle("-fx-text-fill: #64748b;");
 
-        card.getChildren().addAll(iconLabel, nameLabel, countLabel);
+        card.getChildren().addAll(iconContainer, nameLabel, countLabel);
+
+        card.setOnMouseEntered(e -> {
+            card.setStyle(
+                    "-fx-background-color: white; " +
+                            "-fx-background-radius: 20; " +
+                            "-fx-cursor: hand; " +
+                            "-fx-effect: dropshadow(gaussian, " + color + "40, 16, 0, 0, 8);"
+            );
+        });
+
+        card.setOnMouseExited(e -> {
+            card.setStyle(
+                    "-fx-background-color: white; " +
+                            "-fx-background-radius: 20; " +
+                            "-fx-cursor: hand; " +
+                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+            );
+        });
 
         return card;
     }
 
     private VBox createSimpleQuestionsTable() {
         VBox table = new VBox();
-        table.getStyleClass().add("questions-table");
-        table.setMaxHeight(300); // Limit height
+        table.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        );
+        table.setMaxHeight(350);
 
-        // Table header
         HBox header = new HBox();
-        header.getStyleClass().add("table-header");
-        header.setPadding(new Insets(15, 20, 15, 20));
+        header.setPadding(new Insets(20, 24, 16, 24));
         header.setSpacing(20);
+        header.setStyle("-fx-background-color: #f8fafc; -fx-background-radius: 20 20 0 0;");
 
-        Label nameHeader = new Label("Name");
+        Label iconHeader = new Label("");
+        iconHeader.setPrefWidth(40);
+
+        Label nameHeader = new Label("QUESTION");
         nameHeader.setPrefWidth(400);
-        Label topicHeader = new Label("Topic");
+        nameHeader.setFont(Font.font("System", FontWeight.BOLD, 11));
+        nameHeader.setStyle("-fx-text-fill: #64748b;");
+
+        Label topicHeader = new Label("TOPIC");
         topicHeader.setPrefWidth(200);
+        topicHeader.setFont(Font.font("System", FontWeight.BOLD, 11));
+        topicHeader.setStyle("-fx-text-fill: #64748b;");
 
-        header.getChildren().addAll(new Label(""), nameHeader, topicHeader);
+        Label statusHeader = new Label("STATUS");
+        statusHeader.setPrefWidth(150);
+        statusHeader.setFont(Font.font("System", FontWeight.BOLD, 11));
+        statusHeader.setStyle("-fx-text-fill: #64748b;");
 
-        // Table rows - ONLY 3 for speed
-        VBox rows = new VBox();
+        header.getChildren().addAll(iconHeader, nameHeader, topicHeader, statusHeader);
+
+        VBox rows = new VBox(0);
 
         List<Question> questions = questionDAO.getAll();
-        for (int i = 0; i < Math.min(questions.size(), 3); i++) {
+        for (int i = 0; i < Math.min(questions.size(), 5); i++) {
             Question q = questions.get(i);
             Topic topic = topicDAO.getById(q.getTopicId());
 
+            Review latestReview = reviewDAO.getLatestReview(q.getId(), currentUserId);
+            String status = latestReview == null ? "New" :
+                    (latestReview.getNextReviewDate().isBefore(LocalDate.now()) ? "Due" : "Reviewed");
+            String statusColor = latestReview == null ? "#3b82f6" :
+                    (latestReview.getNextReviewDate().isBefore(LocalDate.now()) ? "#f59e0b" : "#10b981");
+
             HBox row = new HBox();
-            row.getStyleClass().add("table-row");
-            row.setPadding(new Insets(15, 20, 15, 20));
+            row.setPadding(new Insets(16, 24, 16, 24));
             row.setSpacing(20);
+            row.setStyle("-fx-border-color: #f1f5f9; -fx-border-width: 1 0 0 0;");
 
             Label icon = new Label("📝");
-            icon.setFont(Font.font(18));
+            icon.setFont(Font.font(20));
+            icon.setPrefWidth(40);
 
-            // Truncate long questions
             String questionText = q.getQuestionText();
             if (questionText.length() > 50) {
                 questionText = questionText.substring(0, 50) + "...";
             }
             Label name = new Label(questionText);
             name.setPrefWidth(400);
+            name.setFont(Font.font(14));
+            name.setStyle("-fx-text-fill: #0f172a;");
 
             Label topicName = new Label(topic != null ? topic.getName() : "Unknown");
             topicName.setPrefWidth(200);
+            topicName.setFont(Font.font(13));
+            topicName.setStyle("-fx-text-fill: #64748b;");
 
-            row.getChildren().addAll(icon, name, topicName);
+            Label statusLabel = new Label(status);
+            statusLabel.setPrefWidth(150);
+            statusLabel.setPadding(new Insets(4, 12, 4, 12));
+            statusLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
+            statusLabel.setStyle(
+                    "-fx-background-color: " + statusColor + "1A; " +
+                            "-fx-text-fill: " + statusColor + "; " +
+                            "-fx-background-radius: 12;"
+            );
+
+            row.getChildren().addAll(icon, name, topicName, statusLabel);
+
+            row.setOnMouseEntered(e -> row.setStyle(
+                    "-fx-background-color: #f8fafc; " +
+                            "-fx-border-color: #f1f5f9; " +
+                            "-fx-border-width: 1 0 0 0;"
+            ));
+            row.setOnMouseExited(e -> row.setStyle(
+                    "-fx-background-color: transparent; " +
+                            "-fx-border-color: #f1f5f9; " +
+                            "-fx-border-width: 1 0 0 0;"
+            ));
+
             rows.getChildren().add(row);
         }
 
@@ -330,47 +608,51 @@ public class MainApp extends Application {
     }
 
     private void showTopics() {
-        VBox topicsScreen = new VBox(20);
-        topicsScreen.setPadding(new Insets(30, 40, 30, 40));
+        VBox topicsScreen = new VBox(25);
+        topicsScreen.setPadding(new Insets(40, 50, 40, 50));
+        topicsScreen.setStyle("-fx-background-color: #f8fafc;");
 
-        // Header with Add button
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(header, Priority.ALWAYS);
 
-        Label title = new Label("Topics Management");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        Label title = new Label("Topics");
+        title.setFont(Font.font("System", FontWeight.BOLD, 32));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button addTopicBtn = new Button("➕ Add Topic");
-        addTopicBtn.setPrefHeight(40);
-        addTopicBtn.setPrefWidth(150);
+        Button addTopicBtn = new Button("＋ Add Topic");
+        addTopicBtn.setPrefHeight(44);
+        addTopicBtn.setPrefWidth(140);
+        addTopicBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         addTopicBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-size: 14px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 10; " +
-                        "-fx-cursor: hand;"
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
         );
         addTopicBtn.setOnAction(e -> showAddTopicDialog());
 
         header.getChildren().addAll(title, spacer, addTopicBtn);
 
-        // Topics grid
-        FlowPane topicsGrid = new FlowPane(20, 20);
+        FlowPane topicsGrid = new FlowPane(24, 24);
 
         List<Topic> topics = topicDAO.getAll();
-        String[] colors = {"yellow", "blue", "purple", "cyan", "pink", "green", "orange", "red"};
+        String[] colors = {"#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4", "#f97316", "#ef4444"};
         String[] icons = {"📦", "🔄", "🎯", "🗄️", "💻", "🌐", "📚", "🧠"};
 
         if (topics.isEmpty()) {
-            Label noTopics = new Label("No topics yet. Click 'Add Topic' to create your first topic!");
-            noTopics.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 16px;");
-            noTopics.setPadding(new Insets(50));
-            topicsGrid.getChildren().add(noTopics);
+            VBox emptyState = createEmptyState(
+                    "📁",
+                    "No topics yet",
+                    "Create your first topic to start organizing your questions",
+                    "Create Topic",
+                    () -> showAddTopicDialog()
+            );
+            topicsGrid.getChildren().add(emptyState);
         } else {
             for (int i = 0; i < topics.size(); i++) {
                 Topic topic = topics.get(i);
@@ -389,116 +671,159 @@ public class MainApp extends Application {
 
         ScrollPane scrollPane = new ScrollPane(topicsScreen);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: #f5f7fa;");
+        scrollPane.setStyle("-fx-background: #f8fafc; -fx-background-color: #f8fafc;");
 
         contentArea.getChildren().clear();
         contentArea.getChildren().add(scrollPane);
     }
 
-    private VBox createManageableTopicCard(Topic topic, int questionCount, String icon, String color) {
-        VBox card = new VBox(12);
-        card.getStyleClass().addAll("topic-card", "topic-card-" + color);
-        card.setPadding(new Insets(20));
-        card.setPrefWidth(250);
-        card.setPrefHeight(200);
-        card.setStyle(
+    private VBox createEmptyState(String icon, String title, String message, String buttonText, Runnable action) {
+        VBox emptyState = new VBox(20);
+        emptyState.setAlignment(Pos.CENTER);
+        emptyState.setPadding(new Insets(80));
+        emptyState.setPrefWidth(600);
+        emptyState.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 2; " +
-                        "-fx-border-radius: 15; " +
-                        "-fx-background-radius: 15; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 5, 0, 0, 2);"
+                        "-fx-background-radius: 24; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
-        // Hover effect
-        card.setOnMouseEntered(e -> card.setStyle(
-                "-fx-background-color: white; " +
-                        "-fx-border-color: #3b82f6; " +
-                        "-fx-border-width: 2; " +
-                        "-fx-border-radius: 15; " +
-                        "-fx-background-radius: 15; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(59,130,246,0.3), 10, 0, 0, 4);"
-        ));
-        card.setOnMouseExited(e -> card.setStyle(
-                "-fx-background-color: white; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 2; " +
-                        "-fx-border-radius: 15; " +
-                        "-fx-background-radius: 15; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.05), 5, 0, 0, 2);"
-        ));
-
-        // Icon
         Label iconLabel = new Label(icon);
-        iconLabel.setFont(Font.font(40));
+        iconLabel.setFont(Font.font(64));
 
-        // Topic name
+        Label titleLabel = new Label(title);
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 24));
+        titleLabel.setStyle("-fx-text-fill: #0f172a;");
+
+        Label messageLabel = new Label(message);
+        messageLabel.setFont(Font.font(14));
+        messageLabel.setStyle("-fx-text-fill: #64748b;");
+        messageLabel.setWrapText(true);
+        messageLabel.setMaxWidth(400);
+        messageLabel.setAlignment(Pos.CENTER);
+
+        Button actionBtn = new Button(buttonText);
+        actionBtn.setPrefHeight(44);
+        actionBtn.setPrefWidth(160);
+        actionBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
+        actionBtn.setStyle(
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                        "-fx-text-fill: white; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand;"
+        );
+        actionBtn.setOnAction(e -> action.run());
+
+        emptyState.getChildren().addAll(iconLabel, titleLabel, messageLabel, actionBtn);
+
+        return emptyState;
+    }
+
+    private VBox createManageableTopicCard(Topic topic, int questionCount, String icon, String color) {
+        VBox card = new VBox(16);
+        card.setPadding(new Insets(28));
+        card.setPrefWidth(280);
+        card.setPrefHeight(220);
+        card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        );
+
+        StackPane iconContainer = new StackPane();
+        iconContainer.setPrefSize(64, 64);
+        iconContainer.setStyle(
+                "-fx-background-color: linear-gradient(135deg, " + color + " 0%, " + color + "CC 100%); " +
+                        "-fx-background-radius: 18;"
+        );
+
+        Label iconLabel = new Label(icon);
+        iconLabel.setFont(Font.font(32));
+        iconContainer.getChildren().add(iconLabel);
+
         Label nameLabel = new Label(topic.getName());
-        nameLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+        nameLabel.setFont(Font.font("System", FontWeight.BOLD, 17));
+        nameLabel.setStyle("-fx-text-fill: #0f172a;");
         nameLabel.setWrapText(true);
-        nameLabel.setMaxWidth(210);
+        nameLabel.setMaxWidth(220);
 
-        // Question count
-        Label countLabel = new Label(questionCount + " questions");
-        countLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 13px;");
+        HBox countBox = new HBox(8);
+        countBox.setAlignment(Pos.CENTER_LEFT);
 
-        // Description (truncated)
-        String desc = topic.getDescription();
-        if (desc != null && !desc.isEmpty()) {
-            if (desc.length() > 40) {
-                desc = desc.substring(0, 40) + "...";
-            }
-            Label descLabel = new Label(desc);
-            descLabel.setStyle("-fx-text-fill: #9ca3af; -fx-font-size: 11px;");
-            descLabel.setWrapText(true);
-            descLabel.setMaxWidth(210);
-            card.getChildren().add(descLabel);
-        }
+        Label countBadge = new Label(String.valueOf(questionCount));
+        countBadge.setPadding(new Insets(4, 10, 4, 10));
+        countBadge.setFont(Font.font("System", FontWeight.BOLD, 12));
+        countBadge.setStyle(
+                "-fx-background-color: " + color + "1A; " +
+                        "-fx-text-fill: " + color + "; " +
+                        "-fx-background-radius: 10;"
+        );
+
+        Label countLabel = new Label("questions");
+        countLabel.setFont(Font.font(13));
+        countLabel.setStyle("-fx-text-fill: #64748b;");
+
+        countBox.getChildren().addAll(countBadge, countLabel);
 
         Region spacer = new Region();
         VBox.setVgrow(spacer, Priority.ALWAYS);
 
-        // Action buttons
-        HBox actions = new HBox(8);
+        HBox actions = new HBox(10);
         actions.setAlignment(Pos.CENTER);
 
-        Button editBtn = new Button("✏️ Edit");
-        editBtn.setPrefWidth(100);
+        Button editBtn = new Button("Edit");
+        editBtn.setPrefWidth(110);
+        editBtn.setPrefHeight(36);
+        editBtn.setFont(Font.font("System", FontWeight.BOLD, 13));
         editBtn.setStyle(
                 "-fx-background-color: #eff6ff; " +
                         "-fx-text-fill: #3b82f6; " +
-                        "-fx-border-color: #3b82f6; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-background-radius: 8; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-font-size: 12px;"
+                        "-fx-background-radius: 10; " +
+                        "-fx-cursor: hand;"
         );
         editBtn.setOnAction(e -> {
-            e.consume(); // Prevent card click
+            e.consume();
             showEditTopicDialog(topic);
         });
 
         Button deleteBtn = new Button("🗑️");
+        deleteBtn.setPrefHeight(36);
+        deleteBtn.setPrefWidth(36);
         deleteBtn.setStyle(
                 "-fx-background-color: #fef2f2; " +
                         "-fx-text-fill: #ef4444; " +
-                        "-fx-border-color: #ef4444; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-background-radius: 8; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-font-size: 12px;"
+                        "-fx-background-radius: 10; " +
+                        "-fx-cursor: hand;"
         );
         deleteBtn.setOnAction(e -> {
-            e.consume(); // Prevent card click
+            e.consume();
             deleteTopic(topic, questionCount);
         });
 
         actions.getChildren().addAll(editBtn, deleteBtn);
 
-        card.getChildren().addAll(iconLabel, nameLabel, countLabel, spacer, actions);
+        card.getChildren().addAll(iconContainer, nameLabel, countBox, spacer, actions);
+
+        card.setOnMouseEntered(e -> {
+            if (e.getTarget() == card || !e.getTarget().toString().contains("Button")) {
+                card.setStyle(
+                        "-fx-background-color: white; " +
+                                "-fx-background-radius: 20; " +
+                                "-fx-cursor: hand; " +
+                                "-fx-effect: dropshadow(gaussian, " + color + "30, 20, 0, 0, 8);"
+                );
+            }
+        });
+
+        card.setOnMouseExited(e -> {
+            card.setStyle(
+                    "-fx-background-color: white; " +
+                            "-fx-background-radius: 20; " +
+                            "-fx-cursor: hand; " +
+                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+            );
+        });
 
         return card;
     }
@@ -508,56 +833,77 @@ public class MainApp extends Application {
         dialog.setTitle("Add New Topic");
         dialog.initModality(Modality.APPLICATION_MODAL);
 
-        VBox dialogContent = new VBox(20);
-        dialogContent.setPadding(new Insets(30));
-        dialogContent.setPrefWidth(600);
-        dialogContent.setPrefHeight(400);
+        VBox dialogContent = new VBox(24);
+        dialogContent.setPadding(new Insets(40));
+        dialogContent.setPrefWidth(500);
+        dialogContent.setStyle("-fx-background-color: white; -fx-background-radius: 20;");
 
-        Label title = new Label("➕ Add New Topic");
-        title.setFont(Font.font("System", FontWeight.BOLD, 24));
+        Label title = new Label("Create New Topic");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
-        // Topic name
-        Label nameLabel = new Label("Topic Name:");
+        VBox nameBox = new VBox(10);
+        Label nameLabel = new Label("Topic Name");
         nameLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        nameLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextField nameField = new TextField();
         nameField.setPromptText("e.g., Data Structures, Algorithms...");
-        nameField.setPrefHeight(40);
-        nameField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        nameField.setPrefHeight(48);
+        nameField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        nameBox.getChildren().addAll(nameLabel, nameField);
 
-        // Description
-        Label descLabel = new Label("Description (optional):");
+        VBox descBox = new VBox(10);
+        Label descLabel = new Label("Description (optional)");
         descLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        descLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextArea descField = new TextArea();
         descField.setPromptText("Brief description of this topic...");
         descField.setPrefRowCount(4);
         descField.setWrapText(true);
-        descField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        descField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        descBox.getChildren().addAll(descLabel, descField);
 
-        // Buttons
-        HBox buttonBox = new HBox(10);
+        HBox buttonBox = new HBox(12);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
 
         Button cancelBtn = new Button("Cancel");
-        cancelBtn.setPrefWidth(100);
-        cancelBtn.setPrefHeight(40);
+        cancelBtn.setPrefWidth(120);
+        cancelBtn.setPrefHeight(44);
+        cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f3f4f6; " +
-                        "-fx-text-fill: #1f2937; " +
-                        "-fx-background-radius: 8; " +
+                "-fx-background-color: #f1f5f9; " +
+                        "-fx-text-fill: #475569; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         cancelBtn.setOnAction(e -> dialog.close());
 
         Button saveBtn = new Button("Create Topic");
-        saveBtn.setPrefWidth(150);
-        saveBtn.setPrefHeight(40);
+        saveBtn.setPrefWidth(140);
+        saveBtn.setPrefHeight(44);
+        saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         saveBtn.setOnAction(e -> {
@@ -565,11 +911,8 @@ public class MainApp extends Application {
             String description = descField.getText().trim();
 
             if (name.isEmpty()) {
-                Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Validation Error");
-                alert.setHeaderText("Topic Name Required");
-                alert.setContentText("Please enter a topic name.");
-                alert.showAndWait();
+                showAlert(Alert.AlertType.ERROR, "Validation Error", "Topic Name Required",
+                        "Please enter a topic name.");
                 return;
             }
 
@@ -577,37 +920,26 @@ public class MainApp extends Application {
             boolean saved = topicDAO.insert(newTopic);
 
             if (saved) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("Success");
-                alert.setHeaderText("Topic Created!");
-                alert.setContentText("The topic '" + name + "' has been created successfully.");
-                alert.showAndWait();
-
+                showAlert(Alert.AlertType.INFORMATION, "Success", "Topic Created!",
+                        "The topic '" + name + "' has been created successfully.");
                 dialog.close();
-                showTopics(); // Refresh
+                showTopics();
+                refreshSidebar();
             } else {
-                Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Error");
-                alert.setHeaderText("Save Failed");
-                alert.setContentText("Could not create the topic. It might already exist.");
-                alert.showAndWait();
+                showAlert(Alert.AlertType.ERROR, "Error", "Save Failed",
+                        "Could not create the topic. It might already exist.");
             }
         });
 
         buttonBox.getChildren().addAll(cancelBtn, saveBtn);
 
-        dialogContent.getChildren().addAll(
-                title,
-                nameLabel, nameField,
-                descLabel, descField,
-                buttonBox
-        );
+        dialogContent.getChildren().addAll(title, nameBox, descBox, buttonBox);
 
         Scene dialogScene = new Scene(dialogContent);
         dialog.setScene(dialogScene);
-        dialog.setMinWidth(650);
-        dialog.setMinHeight(450);
-        dialog.showAndWait();
+        dialog.setMinWidth(750);
+        dialog.setMinHeight(600);
+        dialog.show();
     }
 
     private void showEditTopicDialog(Topic topic) {
@@ -615,54 +947,75 @@ public class MainApp extends Application {
         dialog.setTitle("Edit Topic");
         dialog.initModality(Modality.APPLICATION_MODAL);
 
-        VBox dialogContent = new VBox(20);
-        dialogContent.setPadding(new Insets(30));
-        dialogContent.setPrefWidth(600);
-        dialogContent.setPrefHeight(400);
+        VBox dialogContent = new VBox(24);
+        dialogContent.setPadding(new Insets(40));
+        dialogContent.setPrefWidth(500);
+        dialogContent.setStyle("-fx-background-color: white; -fx-background-radius: 20;");
 
-        Label title = new Label("✏️ Edit Topic");
-        title.setFont(Font.font("System", FontWeight.BOLD, 24));
+        Label title = new Label("Edit Topic");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
-        // Topic name
-        Label nameLabel = new Label("Topic Name:");
+        VBox nameBox = new VBox(10);
+        Label nameLabel = new Label("Topic Name");
         nameLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        nameLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextField nameField = new TextField(topic.getName());
-        nameField.setPrefHeight(40);
-        nameField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        nameField.setPrefHeight(48);
+        nameField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        nameBox.getChildren().addAll(nameLabel, nameField);
 
-        // Description
-        Label descLabel = new Label("Description:");
+        VBox descBox = new VBox(10);
+        Label descLabel = new Label("Description");
         descLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        descLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextArea descField = new TextArea(topic.getDescription());
         descField.setPrefRowCount(4);
         descField.setWrapText(true);
-        descField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        descField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        descBox.getChildren().addAll(descLabel, descField);
 
-        // Buttons
-        HBox buttonBox = new HBox(10);
+        HBox buttonBox = new HBox(12);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
 
         Button cancelBtn = new Button("Cancel");
-        cancelBtn.setPrefWidth(100);
-        cancelBtn.setPrefHeight(40);
+        cancelBtn.setPrefWidth(120);
+        cancelBtn.setPrefHeight(44);
+        cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f3f4f6; " +
-                        "-fx-text-fill: #1f2937; " +
-                        "-fx-background-radius: 8; " +
+                "-fx-background-color: #f1f5f9; " +
+                        "-fx-text-fill: #475569; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         cancelBtn.setOnAction(e -> dialog.close());
 
         Button saveBtn = new Button("Save Changes");
-        saveBtn.setPrefWidth(150);
-        saveBtn.setPrefHeight(40);
+        saveBtn.setPrefWidth(140);
+        saveBtn.setPrefHeight(44);
+        saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         saveBtn.setOnAction(e -> {
@@ -672,31 +1025,22 @@ public class MainApp extends Application {
             boolean updated = topicDAO.update(topic);
 
             if (updated) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("Success");
-                alert.setHeaderText("Topic Updated!");
-                alert.setContentText("The topic has been updated successfully.");
-                alert.showAndWait();
-
+                showAlert(Alert.AlertType.INFORMATION, "Success", "Topic Updated!",
+                        "The topic has been updated successfully.");
                 dialog.close();
-                showTopics(); // Refresh
+                showTopics();
             }
         });
 
         buttonBox.getChildren().addAll(cancelBtn, saveBtn);
 
-        dialogContent.getChildren().addAll(
-                title,
-                nameLabel, nameField,
-                descLabel, descField,
-                buttonBox
-        );
+        dialogContent.getChildren().addAll(title, nameBox, descBox, buttonBox);
 
         Scene dialogScene = new Scene(dialogContent);
         dialog.setScene(dialogScene);
-        dialog.setMinWidth(650);
-        dialog.setMinHeight(450);
-        dialog.showAndWait();
+        dialog.setMinWidth(750);
+        dialog.setMinHeight(600);
+        dialog.show();
     }
 
     private void deleteTopic(Topic topic, int questionCount) {
@@ -719,67 +1063,64 @@ public class MainApp extends Application {
                 boolean deleted = topicDAO.delete(topic.getId());
 
                 if (deleted) {
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("Success");
-                    alert.setHeaderText("Topic Deleted");
-                    alert.setContentText("The topic has been deleted successfully.");
-                    alert.showAndWait();
-
-                    showTopics(); // Refresh
+                    showAlert(Alert.AlertType.INFORMATION, "Success", "Topic Deleted",
+                            "The topic has been deleted successfully.");
+                    showTopics();
+                    refreshSidebar();
                 } else {
-                    Alert alert = new Alert(Alert.AlertType.ERROR);
-                    alert.setTitle("Error");
-                    alert.setHeaderText("Delete Failed");
-                    alert.setContentText("Could not delete the topic. Please try again.");
-                    alert.showAndWait();
+                    showAlert(Alert.AlertType.ERROR, "Error", "Delete Failed",
+                            "Could not delete the topic. Please try again.");
                 }
             }
         });
     }
 
     private void showQuestions() {
-        VBox questionsScreen = new VBox(20);
-        questionsScreen.setPadding(new Insets(30, 40, 30, 40));
+        VBox questionsScreen = new VBox(25);
+        questionsScreen.setPadding(new Insets(40, 50, 40, 50));
+        questionsScreen.setStyle("-fx-background-color: #f8fafc;");
 
-        // Header with Add button
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(header, Priority.ALWAYS);
 
-        Label title = new Label("Questions Library");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        Label title = new Label("Questions");
+        title.setFont(Font.font("System", FontWeight.BOLD, 32));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button addQuestionBtn = new Button("➕ Add Question");
-        addQuestionBtn.setPrefHeight(40);
+        Button addQuestionBtn = new Button("＋ Add Question");
+        addQuestionBtn.setPrefHeight(44);
         addQuestionBtn.setPrefWidth(150);
+        addQuestionBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         addQuestionBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-size: 14px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 10; " +
-                        "-fx-cursor: hand;"
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
         );
         addQuestionBtn.setOnAction(e -> showAddQuestionDialog());
 
         header.getChildren().addAll(title, spacer, addQuestionBtn);
 
-        // Search bar
-        HBox searchBox = new HBox(10);
+        HBox searchBox = new HBox(15);
         searchBox.setAlignment(Pos.CENTER_LEFT);
 
         TextField searchField = new TextField();
         searchField.setPromptText("🔍 Search questions...");
-        searchField.setPrefWidth(300);
-        searchField.setPrefHeight(40);
+        searchField.setPrefWidth(350);
+        searchField.setPrefHeight(44);
         searchField.setStyle(
-                "-fx-background-radius: 10; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-radius: 10; " +
-                        "-fx-padding: 10;"
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-padding: 12; " +
+                        "-fx-font-size: 14px;"
         );
 
         ComboBox<String> topicFilter = new ComboBox<>();
@@ -789,53 +1130,54 @@ public class MainApp extends Application {
             topicFilter.getItems().add(topic.getName());
         }
         topicFilter.setValue("All Topics");
-        topicFilter.setPrefHeight(40);
-        topicFilter.setStyle("-fx-background-radius: 10;");
+        topicFilter.setPrefHeight(44);
+        topicFilter.setPrefWidth(180);
+        topicFilter.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12;"
+        );
 
         searchBox.getChildren().addAll(searchField, topicFilter);
 
-        // Questions table
         VBox tableContainer = new VBox();
         tableContainer.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-border-radius: 12; " +
-                        "-fx-background-radius: 12;"
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
-        // Table header
         HBox tableHeader = new HBox();
-        tableHeader.setPadding(new Insets(15, 20, 15, 20));
-        tableHeader.setStyle("-fx-background-color: #f9fafb; -fx-border-radius: 12 12 0 0; -fx-background-radius: 12 12 0 0;");
+        tableHeader.setPadding(new Insets(20, 24, 16, 24));
+        tableHeader.setStyle("-fx-background-color: #f8fafc; -fx-border-radius: 20 20 0 0; -fx-background-radius: 20 20 0 0;");
         tableHeader.setSpacing(20);
 
-        Label headerQuestion = new Label("Question");
+        Label headerQuestion = new Label("QUESTION");
         headerQuestion.setPrefWidth(350);
-        headerQuestion.setFont(Font.font("System", FontWeight.BOLD, 13));
-        headerQuestion.setStyle("-fx-text-fill: #6b7280;");
+        headerQuestion.setFont(Font.font("System", FontWeight.BOLD, 11));
+        headerQuestion.setStyle("-fx-text-fill: #64748b;");
 
-        Label headerTopic = new Label("Topic");
+        Label headerTopic = new Label("TOPIC");
         headerTopic.setPrefWidth(150);
-        headerTopic.setFont(Font.font("System", FontWeight.BOLD, 13));
-        headerTopic.setStyle("-fx-text-fill: #6b7280;");
+        headerTopic.setFont(Font.font("System", FontWeight.BOLD, 11));
+        headerTopic.setStyle("-fx-text-fill: #64748b;");
 
-        Label headerDifficulty = new Label("Difficulty");
-        headerDifficulty.setPrefWidth(100);
-        headerDifficulty.setFont(Font.font("System", FontWeight.BOLD, 13));
-        headerDifficulty.setStyle("-fx-text-fill: #6b7280;");
+        Label headerDifficulty = new Label("DIFFICULTY");
+        headerDifficulty.setPrefWidth(120);
+        headerDifficulty.setFont(Font.font("System", FontWeight.BOLD, 11));
+        headerDifficulty.setStyle("-fx-text-fill: #64748b;");
 
-        Label headerActions = new Label("Actions");
+        Label headerActions = new Label("ACTIONS");
         headerActions.setPrefWidth(150);
-        headerActions.setFont(Font.font("System", FontWeight.BOLD, 13));
-        headerActions.setStyle("-fx-text-fill: #6b7280;");
+        headerActions.setFont(Font.font("System", FontWeight.BOLD, 11));
+        headerActions.setStyle("-fx-text-fill: #64748b;");
 
         tableHeader.getChildren().addAll(headerQuestion, headerTopic, headerDifficulty, headerActions);
 
-        // Table rows container
-        VBox tableRows = new VBox();
+        VBox tableRows = new VBox(0);
 
-        // Get all questions
         List<Question> questions = questionDAO.getAll();
 
         for (Question q : questions) {
@@ -844,15 +1186,13 @@ public class MainApp extends Application {
             tableRows.getChildren().add(row);
         }
 
-        // Wrap in ScrollPane
         ScrollPane tableScroll = new ScrollPane(tableRows);
         tableScroll.setFitToWidth(true);
-        tableScroll.setPrefHeight(400);
+        tableScroll.setPrefHeight(450);
         tableScroll.setStyle("-fx-background-color: white; -fx-background: white;");
 
         tableContainer.getChildren().addAll(tableHeader, tableScroll);
 
-        // Search functionality
         searchField.textProperty().addListener((obs, old, newVal) -> {
             updateQuestionsList(tableRows, newVal, topicFilter.getValue());
         });
@@ -865,7 +1205,7 @@ public class MainApp extends Application {
 
         ScrollPane mainScroll = new ScrollPane(questionsScreen);
         mainScroll.setFitToWidth(true);
-        mainScroll.setStyle("-fx-background-color: #f5f7fa;");
+        mainScroll.setStyle("-fx-background: #f8fafc; -fx-background-color: #f8fafc;");
 
         contentArea.getChildren().clear();
         contentArea.getChildren().add(mainScroll);
@@ -873,74 +1213,69 @@ public class MainApp extends Application {
 
     private HBox createQuestionRow(Question q, Topic topic) {
         HBox row = new HBox();
-        row.setPadding(new Insets(15, 20, 15, 20));
+        row.setPadding(new Insets(16, 24, 16, 24));
         row.setSpacing(20);
         row.setStyle(
-                "-fx-border-color: #e5e7eb; " +
+                "-fx-border-color: #f1f5f9; " +
                         "-fx-border-width: 1 0 0 0; " +
                         "-fx-background-color: white;"
         );
 
-        // Hover effect
         row.setOnMouseEntered(e -> row.setStyle(
-                "-fx-border-color: #e5e7eb; " +
+                "-fx-border-color: #f1f5f9; " +
                         "-fx-border-width: 1 0 0 0; " +
-                        "-fx-background-color: #f9fafb;"
+                        "-fx-background-color: #f8fafc;"
         ));
         row.setOnMouseExited(e -> row.setStyle(
-                "-fx-border-color: #e5e7eb; " +
+                "-fx-border-color: #f1f5f9; " +
                         "-fx-border-width: 1 0 0 0; " +
                         "-fx-background-color: white;"
         ));
 
-        // Question text (truncated)
         Label questionLabel = new Label(q.getQuestionText());
         questionLabel.setPrefWidth(350);
         questionLabel.setWrapText(true);
         questionLabel.setMaxHeight(60);
         questionLabel.setFont(Font.font(14));
+        questionLabel.setStyle("-fx-text-fill: #0f172a;");
 
-        // Topic
         Label topicLabel = new Label(topic != null ? topic.getName() : "Unknown");
         topicLabel.setPrefWidth(150);
-        topicLabel.setStyle("-fx-text-fill: #6b7280;");
+        topicLabel.setFont(Font.font(13));
+        topicLabel.setStyle("-fx-text-fill: #64748b;");
 
-        // Difficulty badge
         Label difficultyLabel = new Label(q.getDifficulty());
-        difficultyLabel.setPrefWidth(100);
-        difficultyLabel.setPadding(new Insets(4, 10, 4, 10));
+        difficultyLabel.setPrefWidth(120);
+        difficultyLabel.setPadding(new Insets(6, 12, 6, 12));
+        difficultyLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
         difficultyLabel.setStyle(
                 "-fx-background-radius: 12; " +
-                        "-fx-font-size: 11px; " +
-                        "-fx-font-weight: bold; " +
                         getDifficultyColor(q.getDifficulty())
         );
 
-        // Action buttons
         HBox actions = new HBox(8);
         actions.setPrefWidth(150);
 
-        Button editBtn = new Button("✏️ Edit");
+        Button editBtn = new Button("Edit");
+        editBtn.setPrefHeight(32);
+        editBtn.setPrefWidth(60);
+        editBtn.setFont(Font.font("System", FontWeight.BOLD, 12));
         editBtn.setStyle(
                 "-fx-background-color: #eff6ff; " +
                         "-fx-text-fill: #3b82f6; " +
-                        "-fx-border-color: #3b82f6; " +
-                        "-fx-border-width: 1; " +
                         "-fx-background-radius: 8; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-font-size: 12px;"
+                        "-fx-cursor: hand;"
         );
         editBtn.setOnAction(e -> showEditQuestionDialog(q));
 
         Button deleteBtn = new Button("🗑️");
+        deleteBtn.setPrefHeight(32);
+        deleteBtn.setPrefWidth(32);
         deleteBtn.setStyle(
                 "-fx-background-color: #fef2f2; " +
                         "-fx-text-fill: #ef4444; " +
-                        "-fx-border-color: #ef4444; " +
-                        "-fx-border-width: 1; " +
                         "-fx-background-radius: 8; " +
-                        "-fx-cursor: hand; " +
-                        "-fx-font-size: 12px;"
+                        "-fx-cursor: hand;"
         );
         deleteBtn.setOnAction(e -> deleteQuestion(q));
 
@@ -959,12 +1294,10 @@ public class MainApp extends Application {
         for (Question q : questions) {
             Topic topic = topicDAO.getById(q.getTopicId());
 
-            // Filter by search text
             boolean matchesSearch = searchText == null || searchText.isEmpty() ||
                     q.getQuestionText().toLowerCase().contains(searchText.toLowerCase()) ||
                     q.getAnswer().toLowerCase().contains(searchText.toLowerCase());
 
-            // Filter by topic
             boolean matchesTopic = topicFilter.equals("All Topics") ||
                     (topic != null && topic.getName().equals(topicFilter));
 
@@ -981,36 +1314,61 @@ public class MainApp extends Application {
         dialog.initModality(Modality.APPLICATION_MODAL);
 
         VBox dialogContent = new VBox(20);
-        dialogContent.setPadding(new Insets(30));
-        dialogContent.setPrefHeight(700);
-        dialogContent.setPrefWidth(650);
+        dialogContent.setPadding(new Insets(40));
+        dialogContent.setPrefWidth(600);
+        dialogContent.setStyle("-fx-background-color: white; -fx-background-radius: 20;");
 
-        Label title = new Label("➕ Add New Question");
-        title.setFont(Font.font("System", FontWeight.BOLD, 24));
+        Label title = new Label("Add New Question");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
-        // Question text
-        Label questionLabel = new Label("Question:");
+        VBox questionBox = new VBox(10);
+        Label questionLabel = new Label("Question");
         questionLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        questionLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextArea questionField = new TextArea();
         questionField.setPromptText("Enter your question here...");
         questionField.setPrefRowCount(3);
         questionField.setWrapText(true);
-        questionField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        questionField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        questionBox.getChildren().addAll(questionLabel, questionField);
 
-        // Answer
-        Label answerLabel = new Label("Answer:");
+        VBox answerBox = new VBox(10);
+        Label answerLabel = new Label("Answer");
         answerLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        answerLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextArea answerField = new TextArea();
         answerField.setPromptText("Enter the correct answer...");
         answerField.setPrefRowCount(3);
         answerField.setWrapText(true);
-        answerField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        answerField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        answerBox.getChildren().addAll(answerLabel, answerField);
 
-        // Topic
-        Label topicLabel = new Label("Topic:");
+        HBox metaRow = new HBox(15);
+
+        VBox topicBox = new VBox(10);
+        HBox.setHgrow(topicBox, Priority.ALWAYS);
+        Label topicLabel = new Label("Topic");
         topicLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        topicLabel.setStyle("-fx-text-fill: #0f172a;");
 
         ComboBox<String> topicCombo = new ComboBox<>();
         List<Topic> topics = topicDAO.getAll();
@@ -1020,42 +1378,62 @@ public class MainApp extends Application {
         if (!topics.isEmpty()) {
             topicCombo.setValue(topics.get(0).getName());
         }
-        topicCombo.setPrefWidth(300);
-        topicCombo.setStyle("-fx-background-radius: 8;");
+        topicCombo.setPrefHeight(48);
+        topicCombo.setMaxWidth(Double.MAX_VALUE);
+        topicCombo.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12;"
+        );
+        topicBox.getChildren().addAll(topicLabel, topicCombo);
 
-        // Difficulty
-        Label difficultyLabel = new Label("Difficulty:");
+        VBox difficultyBox = new VBox(10);
+        HBox.setHgrow(difficultyBox, Priority.ALWAYS);
+        Label difficultyLabel = new Label("Difficulty");
         difficultyLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        difficultyLabel.setStyle("-fx-text-fill: #0f172a;");
 
         ComboBox<String> difficultyCombo = new ComboBox<>();
         difficultyCombo.getItems().addAll("EASY", "MEDIUM", "HARD");
         difficultyCombo.setValue("MEDIUM");
-        difficultyCombo.setPrefWidth(300);
-        difficultyCombo.setStyle("-fx-background-radius: 8;");
+        difficultyCombo.setPrefHeight(48);
+        difficultyCombo.setMaxWidth(Double.MAX_VALUE);
+        difficultyCombo.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12;"
+        );
+        difficultyBox.getChildren().addAll(difficultyLabel, difficultyCombo);
 
-        // Buttons
-        HBox buttonBox = new HBox(10);
+        metaRow.getChildren().addAll(topicBox, difficultyBox);
+
+        HBox buttonBox = new HBox(12);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
 
         Button cancelBtn = new Button("Cancel");
-        cancelBtn.setPrefWidth(100);
-        cancelBtn.setPrefHeight(40);
+        cancelBtn.setPrefWidth(120);
+        cancelBtn.setPrefHeight(44);
+        cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f3f4f6; " +
-                        "-fx-text-fill: #1f2937; " +
-                        "-fx-background-radius: 8; " +
+                "-fx-background-color: #f1f5f9; " +
+                        "-fx-text-fill: #475569; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         cancelBtn.setOnAction(e -> dialog.close());
 
         Button saveBtn = new Button("Save Question");
         saveBtn.setPrefWidth(150);
-        saveBtn.setPrefHeight(40);
+        saveBtn.setPrefHeight(44);
+        saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         saveBtn.setOnAction(e -> {
@@ -1065,15 +1443,11 @@ public class MainApp extends Application {
             String difficulty = difficultyCombo.getValue();
 
             if (questionText.isEmpty() || answer.isEmpty()) {
-                Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Validation Error");
-                alert.setHeaderText("Missing Information");
-                alert.setContentText("Please fill in both question and answer fields.");
-                alert.showAndWait();
+                showAlert(Alert.AlertType.ERROR, "Validation Error", "Missing Information",
+                        "Please fill in both question and answer fields.");
                 return;
             }
 
-            // Find topic ID
             int topicId = 0;
             for (Topic t : topics) {
                 if (t.getName().equals(topicName)) {
@@ -1082,25 +1456,18 @@ public class MainApp extends Application {
                 }
             }
 
-            // Create and save question
             Question newQuestion = new Question(questionText, answer, topicId, difficulty);
             boolean saved = questionDAO.insert(newQuestion);
 
             if (saved) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("Success");
-                alert.setHeaderText("Question Added!");
-                alert.setContentText("The question has been added successfully.");
-                alert.showAndWait();
-
+                showAlert(Alert.AlertType.INFORMATION, "Success", "Question Added!",
+                        "The question has been added successfully.");
                 dialog.close();
-                showQuestions(); // Refresh the list
+                showQuestions();
+                refreshSidebar();
             } else {
-                Alert alert = new Alert(Alert.AlertType.ERROR);
-                alert.setTitle("Error");
-                alert.setHeaderText("Save Failed");
-                alert.setContentText("Could not save the question. Please try again.");
-                alert.showAndWait();
+                showAlert(Alert.AlertType.ERROR, "Error", "Save Failed",
+                        "Could not save the question. Please try again.");
             }
         });
 
@@ -1108,18 +1475,17 @@ public class MainApp extends Application {
 
         dialogContent.getChildren().addAll(
                 title,
-                questionLabel, questionField,
-                answerLabel, answerField,
-                topicLabel, topicCombo,
-                difficultyLabel, difficultyCombo,
+                questionBox,
+                answerBox,
+                metaRow,
                 buttonBox
         );
 
         Scene dialogScene = new Scene(dialogContent);
         dialog.setScene(dialogScene);
         dialog.setMinWidth(750);
-        dialog.setMinHeight(700);
-        dialog.showAndWait();
+        dialog.setMinHeight(600);
+        dialog.show();
     }
 
     private void showEditQuestionDialog(Question question) {
@@ -1128,34 +1494,59 @@ public class MainApp extends Application {
         dialog.initModality(Modality.APPLICATION_MODAL);
 
         VBox dialogContent = new VBox(20);
-        dialogContent.setPadding(new Insets(30));
-        dialogContent.setPrefHeight(700);
-        dialogContent.setPrefWidth(650);
+        dialogContent.setPadding(new Insets(40));
+        dialogContent.setPrefWidth(600);
+        dialogContent.setStyle("-fx-background-color: white; -fx-background-radius: 20;");
 
-        Label title = new Label("✏️ Edit Question");
-        title.setFont(Font.font("System", FontWeight.BOLD, 24));
+        Label title = new Label("Edit Question");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
-        // Question text
-        Label questionLabel = new Label("Question:");
+        VBox questionBox = new VBox(10);
+        Label questionLabel = new Label("Question");
         questionLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        questionLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextArea questionField = new TextArea(question.getQuestionText());
         questionField.setPrefRowCount(3);
         questionField.setWrapText(true);
-        questionField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        questionField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        questionBox.getChildren().addAll(questionLabel, questionField);
 
-        // Answer
-        Label answerLabel = new Label("Answer:");
+        VBox answerBox = new VBox(10);
+        Label answerLabel = new Label("Answer");
         answerLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        answerLabel.setStyle("-fx-text-fill: #0f172a;");
 
         TextArea answerField = new TextArea(question.getAnswer());
         answerField.setPrefRowCount(3);
         answerField.setWrapText(true);
-        answerField.setStyle("-fx-border-color: #e5e7eb; -fx-border-radius: 8; -fx-background-radius: 8;");
+        answerField.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-font-size: 14px; " +
+                        "-fx-padding: 12;"
+        );
+        answerBox.getChildren().addAll(answerLabel, answerField);
 
-        // Topic
-        Label topicLabel = new Label("Topic:");
+        HBox metaRow = new HBox(15);
+
+        VBox topicBox = new VBox(10);
+        HBox.setHgrow(topicBox, Priority.ALWAYS);
+        Label topicLabel = new Label("Topic");
         topicLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        topicLabel.setStyle("-fx-text-fill: #0f172a;");
 
         ComboBox<String> topicCombo = new ComboBox<>();
         List<Topic> topics = topicDAO.getAll();
@@ -1164,40 +1555,62 @@ public class MainApp extends Application {
             topicCombo.getItems().add(t.getName());
         }
         topicCombo.setValue(currentTopic != null ? currentTopic.getName() : topics.get(0).getName());
-        topicCombo.setPrefWidth(300);
+        topicCombo.setPrefHeight(48);
+        topicCombo.setMaxWidth(Double.MAX_VALUE);
+        topicCombo.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12;"
+        );
+        topicBox.getChildren().addAll(topicLabel, topicCombo);
 
-        // Difficulty
-        Label difficultyLabel = new Label("Difficulty:");
+        VBox difficultyBox = new VBox(10);
+        HBox.setHgrow(difficultyBox, Priority.ALWAYS);
+        Label difficultyLabel = new Label("Difficulty");
         difficultyLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        difficultyLabel.setStyle("-fx-text-fill: #0f172a;");
 
         ComboBox<String> difficultyCombo = new ComboBox<>();
         difficultyCombo.getItems().addAll("EASY", "MEDIUM", "HARD");
         difficultyCombo.setValue(question.getDifficulty());
-        difficultyCombo.setPrefWidth(300);
+        difficultyCombo.setPrefHeight(48);
+        difficultyCombo.setMaxWidth(Double.MAX_VALUE);
+        difficultyCombo.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 12;"
+        );
+        difficultyBox.getChildren().addAll(difficultyLabel, difficultyCombo);
 
-        // Buttons
-        HBox buttonBox = new HBox(10);
+        metaRow.getChildren().addAll(topicBox, difficultyBox);
+
+        HBox buttonBox = new HBox(12);
         buttonBox.setAlignment(Pos.CENTER_RIGHT);
 
         Button cancelBtn = new Button("Cancel");
-        cancelBtn.setPrefWidth(100);
-        cancelBtn.setPrefHeight(40);
+        cancelBtn.setPrefWidth(120);
+        cancelBtn.setPrefHeight(44);
+        cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f3f4f6; " +
-                        "-fx-text-fill: #1f2937; " +
-                        "-fx-background-radius: 8; " +
+                "-fx-background-color: #f1f5f9; " +
+                        "-fx-text-fill: #475569; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         cancelBtn.setOnAction(e -> dialog.close());
 
         Button saveBtn = new Button("Save Changes");
         saveBtn.setPrefWidth(150);
-        saveBtn.setPrefHeight(40);
+        saveBtn.setPrefHeight(44);
+        saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 8; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         saveBtn.setOnAction(e -> {
@@ -1205,7 +1618,6 @@ public class MainApp extends Application {
             question.setAnswer(answerField.getText().trim());
             question.setDifficulty(difficultyCombo.getValue());
 
-            // Find topic ID
             for (Topic t : topics) {
                 if (t.getName().equals(topicCombo.getValue())) {
                     question.setTopicId(t.getId());
@@ -1216,14 +1628,10 @@ public class MainApp extends Application {
             boolean updated = questionDAO.update(question);
 
             if (updated) {
-                Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                alert.setTitle("Success");
-                alert.setHeaderText("Question Updated!");
-                alert.setContentText("The question has been updated successfully.");
-                alert.showAndWait();
-
+                showAlert(Alert.AlertType.INFORMATION, "Success", "Question Updated!",
+                        "The question has been updated successfully.");
                 dialog.close();
-                showQuestions(); // Refresh
+                showQuestions();
             }
         });
 
@@ -1231,18 +1639,17 @@ public class MainApp extends Application {
 
         dialogContent.getChildren().addAll(
                 title,
-                questionLabel, questionField,
-                answerLabel, answerField,
-                topicLabel, topicCombo,
-                difficultyLabel, difficultyCombo,
+                questionBox,
+                answerBox,
+                metaRow,
                 buttonBox
         );
 
         Scene dialogScene = new Scene(dialogContent);
         dialog.setScene(dialogScene);
         dialog.setMinWidth(750);
-        dialog.setMinHeight(700);
-        dialog.showAndWait();
+        dialog.setMinHeight(600);
+        dialog.show();
     }
 
     private void deleteQuestion(Question question) {
@@ -1257,38 +1664,29 @@ public class MainApp extends Application {
                 boolean deleted = questionDAO.delete(question.getId());
 
                 if (deleted) {
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION);
-                    alert.setTitle("Success");
-                    alert.setHeaderText("Question Deleted");
-                    alert.setContentText("The question has been deleted successfully.");
-                    alert.showAndWait();
-
-                    showQuestions(); // Refresh
+                    showAlert(Alert.AlertType.INFORMATION, "Success", "Question Deleted",
+                            "The question has been deleted successfully.");
+                    showQuestions();
+                    refreshSidebar();
                 }
             }
         });
     }
 
-
     private void showStudySession() {
-        // Get questions due today
         currentStudyQuestions = studyService.getDueQuestions(currentUserId);
 
-        // If no questions, get some new ones
         if (currentStudyQuestions.isEmpty()) {
-            currentStudyQuestions = studyService.getNewQuestions(currentUserId, 10);
+            currentStudyQuestions = studyService.getNewQuestions(currentUserId, dailyGoalQuestions);
         }
 
-        // Reset index
         currentQuestionIndex = 0;
 
-        // Check if we have questions
         if (currentStudyQuestions.isEmpty()) {
             showNoQuestionsScreen();
             return;
         }
 
-        // Show first question
         showQuestionCard();
     }
 
@@ -1296,22 +1694,38 @@ public class MainApp extends Application {
         VBox content = new VBox(30);
         content.setAlignment(Pos.CENTER);
         content.setPadding(new Insets(100));
+        content.setStyle("-fx-background-color: #f8fafc;");
 
         Label icon = new Label("🎉");
         icon.setFont(Font.font(80));
 
         Label title = new Label("All Caught Up!");
         title.setFont(Font.font("System", FontWeight.BOLD, 32));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
         Label message = new Label("You have no questions due for review today.");
         message.setFont(Font.font(16));
-        message.setStyle("-fx-text-fill: #6b7280;");
+        message.setStyle("-fx-text-fill: #64748b;");
+
+        var stats = studyService.getSessionStats(currentUserId);
+        Label statsInfo = new Label(String.format("You've reviewed %d questions with a %.0f%% success rate!",
+                stats.getTotalReviews(), stats.getSuccessRate()));
+        statsInfo.setFont(Font.font(14));
+        statsInfo.setStyle("-fx-text-fill: #10b981;");
 
         Button backBtn = new Button("⬅️ Back to Dashboard");
-        backBtn.getStyleClass().add("primary-button");
+        backBtn.setPrefHeight(44);
+        backBtn.setPrefWidth(200);
+        backBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
+        backBtn.setStyle(
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                        "-fx-text-fill: white; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand;"
+        );
         backBtn.setOnAction(e -> showDashboard());
 
-        content.getChildren().addAll(icon, title, message, backBtn);
+        content.getChildren().addAll(icon, title, message, statsInfo, backBtn);
 
         contentArea.getChildren().clear();
         contentArea.getChildren().add(content);
@@ -1322,66 +1736,72 @@ public class MainApp extends Application {
         Topic topic = topicDAO.getById(currentQuestion.getTopicId());
 
         VBox questionScreen = new VBox(30);
-        questionScreen.setPadding(new Insets(40));
+        questionScreen.setPadding(new Insets(50));
         questionScreen.setAlignment(Pos.TOP_CENTER);
-        questionScreen.setStyle("-fx-background-color: white;");
+        questionScreen.setStyle("-fx-background-color: #f8fafc;");
 
-        // Progress indicator
         HBox progressBar = new HBox(10);
         progressBar.setAlignment(Pos.CENTER);
-        Label progressText = new Label("Question " + (currentQuestionIndex + 1) + " of " + currentStudyQuestions.size());
-        progressText.setFont(Font.font("System", FontWeight.BOLD, 16));
-        progressText.setStyle("-fx-text-fill: #3b82f6;");
-        progressBar.getChildren().add(progressText);
 
-        // Question card
+        ProgressBar progressIndicator = new ProgressBar();
+        progressIndicator.setProgress((double) (currentQuestionIndex + 1) / currentStudyQuestions.size());
+        progressIndicator.setPrefWidth(300);
+        progressIndicator.setPrefHeight(8);
+        progressIndicator.setStyle(
+                "-fx-accent: linear-gradient(to right, #667eea, #764ba2);" +
+                        "-fx-background-color: #e2e8f0;" +
+                        "-fx-background-radius: 4;"
+        );
+
+        Label progressText = new Label("Question " + (currentQuestionIndex + 1) + " of " + currentStudyQuestions.size());
+        progressText.setFont(Font.font("System", FontWeight.BOLD, 14));
+        progressText.setStyle("-fx-text-fill: #64748b;");
+
+        VBox progressBox = new VBox(10);
+        progressBox.setAlignment(Pos.CENTER);
+        progressBox.getChildren().addAll(progressIndicator, progressText);
+
         VBox questionCard = new VBox(25);
-        questionCard.setPadding(new Insets(40));
+        questionCard.setPadding(new Insets(50));
         questionCard.setMaxWidth(800);
         questionCard.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 2; " +
-                        "-fx-border-radius: 15; " +
-                        "-fx-background-radius: 15; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 10, 0, 0, 4);"
+                        "-fx-background-radius: 24; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.1), 20, 0, 0, 8);"
         );
 
-        // Header with topic and difficulty
         HBox cardHeader = new HBox(15);
         cardHeader.setAlignment(Pos.CENTER_LEFT);
 
         Label topicLabel = new Label("📁 " + (topic != null ? topic.getName() : "Unknown"));
-        topicLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 14px;");
+        topicLabel.setFont(Font.font(14));
+        topicLabel.setStyle("-fx-text-fill: #64748b;");
 
         Label difficultyBadge = new Label(currentQuestion.getDifficulty());
-        difficultyBadge.setPadding(new Insets(5, 12, 5, 12));
+        difficultyBadge.setPadding(new Insets(6, 14, 6, 14));
+        difficultyBadge.setFont(Font.font("System", FontWeight.BOLD, 12));
         difficultyBadge.setStyle(
-                "-fx-background-radius: 15; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-font-size: 12px; " +
+                "-fx-background-radius: 12; " +
                         getDifficultyColor(currentQuestion.getDifficulty())
         );
 
         cardHeader.getChildren().addAll(topicLabel, difficultyBadge);
 
-        // Question text
         Label questionText = new Label(currentQuestion.getQuestionText());
         questionText.setWrapText(true);
-        questionText.setFont(Font.font("System", FontWeight.NORMAL, 22));
-        questionText.setStyle("-fx-text-fill: #1f2937; -fx-line-spacing: 5px;");
+        questionText.setFont(Font.font("System", FontWeight.NORMAL, 24));
+        questionText.setStyle("-fx-text-fill: #0f172a; -fx-line-spacing: 8px;");
 
-        // Answer area (initially hidden)
         VBox answerArea = new VBox(15);
         answerArea.setVisible(false);
         answerArea.setManaged(false);
-        answerArea.setPadding(new Insets(20));
+        answerArea.setPadding(new Insets(24));
         answerArea.setStyle(
                 "-fx-background-color: #f0fdf4; " +
                         "-fx-border-color: #86efac; " +
                         "-fx-border-width: 2; " +
-                        "-fx-border-radius: 10; " +
-                        "-fx-background-radius: 10;"
+                        "-fx-border-radius: 16; " +
+                        "-fx-background-radius: 16;"
         );
 
         Label answerTitle = new Label("✅ Correct Answer:");
@@ -1391,55 +1811,53 @@ public class MainApp extends Application {
         Label answerText = new Label(currentQuestion.getAnswer());
         answerText.setWrapText(true);
         answerText.setFont(Font.font(16));
-        answerText.setStyle("-fx-text-fill: #1f2937; -fx-line-spacing: 3px;");
+        answerText.setStyle("-fx-text-fill: #0f172a; -fx-line-spacing: 4px;");
 
         answerArea.getChildren().addAll(answerTitle, answerText);
 
-        // Buttons
         HBox buttonBox = new HBox(15);
         buttonBox.setAlignment(Pos.CENTER);
 
         Button showAnswerBtn = new Button("👁️ Show Answer");
-        showAnswerBtn.setPrefWidth(200);
-        showAnswerBtn.setPrefHeight(45);
+        showAnswerBtn.setPrefWidth(220);
+        showAnswerBtn.setPrefHeight(50);
+        showAnswerBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         showAnswerBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-size: 16px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 10; " +
-                        "-fx-cursor: hand;"
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
         );
 
         Button correctBtn = new Button("✅ I Got It Right");
-        correctBtn.setPrefWidth(200);
-        correctBtn.setPrefHeight(45);
+        correctBtn.setPrefWidth(220);
+        correctBtn.setPrefHeight(50);
+        correctBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         correctBtn.setVisible(false);
         correctBtn.setManaged(false);
         correctBtn.setStyle(
                 "-fx-background-color: #10b981; " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-size: 16px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 10; " +
-                        "-fx-cursor: hand;"
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.4), 12, 0, 0, 4);"
         );
 
         Button wrongBtn = new Button("❌ I Got It Wrong");
-        wrongBtn.setPrefWidth(200);
-        wrongBtn.setPrefHeight(45);
+        wrongBtn.setPrefWidth(220);
+        wrongBtn.setPrefHeight(50);
+        wrongBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         wrongBtn.setVisible(false);
         wrongBtn.setManaged(false);
         wrongBtn.setStyle(
                 "-fx-background-color: #ef4444; " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-size: 16px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 10; " +
-                        "-fx-cursor: hand;"
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(239, 68, 68, 0.4), 12, 0, 0, 4);"
         );
 
-        // Show answer button action
         showAnswerBtn.setOnAction(e -> {
             answerArea.setVisible(true);
             answerArea.setManaged(true);
@@ -1451,12 +1869,10 @@ public class MainApp extends Application {
             wrongBtn.setManaged(true);
         });
 
-        // Correct button action
         correctBtn.setOnAction(e -> {
             handleAnswer(currentQuestion, true);
         });
 
-        // Wrong button action
         wrongBtn.setOnAction(e -> {
             handleAnswer(currentQuestion, false);
         });
@@ -1465,11 +1881,11 @@ public class MainApp extends Application {
 
         questionCard.getChildren().addAll(cardHeader, questionText, answerArea, buttonBox);
 
-        questionScreen.getChildren().addAll(progressBar, questionCard);
+        questionScreen.getChildren().addAll(progressBox, questionCard);
 
         ScrollPane scrollPane = new ScrollPane(questionScreen);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: white;");
+        scrollPane.setStyle("-fx-background: #f8fafc; -fx-background-color: #f8fafc;");
 
         contentArea.getChildren().clear();
         contentArea.getChildren().add(scrollPane);
@@ -1481,51 +1897,43 @@ public class MainApp extends Application {
                 return "-fx-background-color: #dcfce7; -fx-text-fill: #16a34a;";
             case "HARD":
                 return "-fx-background-color: #fee2e2; -fx-text-fill: #dc2626;";
-            default: // MEDIUM
+            default:
                 return "-fx-background-color: #fed7aa; -fx-text-fill: #ea580c;";
         }
     }
 
     private void handleAnswer(Question question, boolean wasCorrect) {
-        // Submit answer to backend (SM-2 algorithm runs here!)
         boolean saved = studyService.submitAnswer(question.getId(), currentUserId, wasCorrect);
 
         if (saved) {
-            // Show feedback
             showAnswerFeedback(wasCorrect);
 
-            // Move to next question after delay
-            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(1.5));
+            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(1));
             pause.setOnFinished(e -> nextQuestion());
             pause.play();
         } else {
-            // Show error
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Error");
-            alert.setHeaderText("Failed to save answer");
-            alert.setContentText("Please try again.");
-            alert.showAndWait();
+            showAlert(Alert.AlertType.ERROR, "Error", "Failed to save answer", "Please try again.");
         }
     }
 
     private void showAnswerFeedback(boolean wasCorrect) {
-        VBox feedback = new VBox(20);
+        VBox feedback = new VBox(30);
         feedback.setAlignment(Pos.CENTER);
-        feedback.setPadding(new Insets(100));
-        feedback.setStyle("-fx-background-color: white;");
+        feedback.setPadding(new Insets(120));
+        feedback.setStyle("-fx-background-color: #f8fafc;");
 
         Label icon = new Label(wasCorrect ? "🎉" : "💪");
-        icon.setFont(Font.font(100));
+        icon.setFont(Font.font(120));
 
         Label message = new Label(wasCorrect ? "Great Job!" : "Keep Practicing!");
-        message.setFont(Font.font("System", FontWeight.BOLD, 36));
+        message.setFont(Font.font("System", FontWeight.BOLD, 42));
         message.setStyle("-fx-text-fill: " + (wasCorrect ? "#10b981" : "#ef4444") + ";");
 
         Label detail = new Label(wasCorrect ?
                 "You'll see this question again in a few days!" :
                 "You'll see this question again tomorrow!");
         detail.setFont(Font.font(18));
-        detail.setStyle("-fx-text-fill: #6b7280;");
+        detail.setStyle("-fx-text-fill: #64748b;");
 
         feedback.getChildren().addAll(icon, message, detail);
 
@@ -1537,10 +1945,8 @@ public class MainApp extends Application {
         currentQuestionIndex++;
 
         if (currentQuestionIndex < currentStudyQuestions.size()) {
-            // Show next question
             showQuestionCard();
         } else {
-            // Session complete!
             showSessionComplete();
         }
     }
@@ -1548,37 +1954,47 @@ public class MainApp extends Application {
     private void showSessionComplete() {
         VBox complete = new VBox(30);
         complete.setAlignment(Pos.CENTER);
-        complete.setPadding(new Insets(100));
+        complete.setPadding(new Insets(120));
+        complete.setStyle("-fx-background-color: #f8fafc;");
 
         Label icon = new Label("🎊");
         icon.setFont(Font.font(100));
 
         Label title = new Label("Session Complete!");
-        title.setFont(Font.font("System", FontWeight.BOLD, 36));
+        title.setFont(Font.font("System", FontWeight.BOLD, 42));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
         Label message = new Label("You reviewed " + currentStudyQuestions.size() + " questions today!");
         message.setFont(Font.font(18));
-        message.setStyle("-fx-text-fill: #6b7280;");
+        message.setStyle("-fx-text-fill: #64748b;");
 
-        // Get updated stats
         var stats = studyService.getSessionStats(currentUserId);
         Label statsText = new Label(String.format("Success Rate: %.0f%%", stats.getSuccessRate()));
-        statsText.setFont(Font.font("System", FontWeight.BOLD, 20));
+        statsText.setFont(Font.font("System", FontWeight.BOLD, 24));
         statsText.setStyle("-fx-text-fill: #10b981;");
+
+        // Check if daily goal reached
+        int todayReviews = getTodayReviewCount();
+        if (todayReviews >= dailyGoalQuestions) {
+            Label goalReached = new Label("🎯 Daily Goal Reached!");
+            goalReached.setFont(Font.font("System", FontWeight.BOLD, 18));
+            goalReached.setStyle("-fx-text-fill: #f59e0b;");
+            complete.getChildren().add(goalReached);
+        }
 
         Button dashboardBtn = new Button("🏠 Back to Dashboard");
         dashboardBtn.setPrefWidth(250);
-        dashboardBtn.setPrefHeight(50);
+        dashboardBtn.setPrefHeight(54);
+        dashboardBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         dashboardBtn.setStyle(
-                "-fx-background-color: #3b82f6; " +
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
                         "-fx-text-fill: white; " +
-                        "-fx-font-size: 18px; " +
-                        "-fx-font-weight: bold; " +
-                        "-fx-background-radius: 10; " +
-                        "-fx-cursor: hand;"
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
         );
         dashboardBtn.setOnAction(e -> {
-            setActiveNavButton(activeNavButton); // Refresh to update home button
+            refreshSidebar();
             showDashboard();
         });
 
@@ -1588,97 +2004,115 @@ public class MainApp extends Application {
         contentArea.getChildren().add(complete);
     }
 
+    private int getTodayReviewCount() {
+        List<Review> allReviews = reviewDAO.getByUserId(currentUserId);
+        LocalDate today = LocalDate.now();
+        int count = 0;
+
+        for (Review review : allReviews) {
+            if (review.getReviewedAt().toLocalDate().equals(today)) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     private void showStatistics() {
         VBox statsScreen = new VBox(30);
-        statsScreen.setPadding(new Insets(30, 40, 30, 40));
+        statsScreen.setPadding(new Insets(40, 50, 40, 50));
+        statsScreen.setStyle("-fx-background-color: #f8fafc;");
 
-        // Header
         Label title = new Label("Statistics & Analytics");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setFont(Font.font("System", FontWeight.BOLD, 32));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
-        // Get statistics
         var stats = studyService.getSessionStats(currentUserId);
-        List<Review> allReviews = new ReviewDAO().getByUserId(currentUserId);
+        List<Review> allReviews = reviewDAO.getByUserId(currentUserId);
 
-        // Overall Stats Cards
         HBox overallStats = new HBox(20);
 
         VBox totalCard = createStatCard(
-                "📚 Total Reviews",
+                "📚",
+                "Total Reviews",
                 String.valueOf(stats.getTotalReviews()),
-                "questions studied"
+                "questions studied",
+                "#3b82f6"
         );
 
         VBox successCard = createStatCard(
-                "✅ Success Rate",
+                "✅",
+                "Success Rate",
                 String.format("%.1f%%", stats.getSuccessRate()),
-                stats.getCorrectAnswers() + " correct answers"
+                stats.getCorrectAnswers() + " correct answers",
+                "#10b981"
         );
 
         VBox dueCard = createStatCard(
-                "⏰ Due Today",
+                "⏰",
+                "Due Today",
                 String.valueOf(stats.getQuestionsDueToday()),
-                "questions need review"
+                "questions need review",
+                "#f59e0b"
         );
 
         VBox streakCard = createStatCard(
-                "🔥 Study Streak",
-                calculateStreak(allReviews) + " days",
-                "Keep it up!"
+                "🔥",
+                "Study Streak",
+                calculateStreak() + " days",
+                "Keep it up!",
+                "#ef4444"
         );
 
         overallStats.getChildren().addAll(totalCard, successCard, dueCard, streakCard);
 
-        // Performance by Topic Section
         Label topicTitle = new Label("Performance by Topic");
-        topicTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
-        topicTitle.setStyle("-fx-text-fill: #1f2937;");
+        topicTitle.setFont(Font.font("System", FontWeight.BOLD, 22));
+        topicTitle.setStyle("-fx-text-fill: #0f172a;");
 
         VBox topicPerformance = new VBox(15);
+        topicPerformance.setPadding(new Insets(30));
         topicPerformance.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-padding: 30; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-border-radius: 12; " +
-                        "-fx-background-radius: 12;"
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
         List<Topic> topics = topicDAO.getAll();
 
         if (topics.isEmpty()) {
             Label noData = new Label("No topics yet. Add some questions to see statistics!");
-            noData.setStyle("-fx-text-fill: #6b7280;");
+            noData.setFont(Font.font(14));
+            noData.setStyle("-fx-text-fill: #64748b;");
             topicPerformance.getChildren().add(noData);
         } else {
             for (Topic topic : topics) {
                 VBox topicCard = createTopicPerformanceCard(topic);
-                topicPerformance.getChildren().add(topicCard);
+                if (topicCard.getChildren().size() > 0) {
+                    topicPerformance.getChildren().add(topicCard);
+                }
             }
         }
 
-        // Recent Activity Section
         Label activityTitle = new Label("Recent Activity");
-        activityTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
-        activityTitle.setStyle("-fx-text-fill: #1f2937;");
+        activityTitle.setFont(Font.font("System", FontWeight.BOLD, 22));
+        activityTitle.setStyle("-fx-text-fill: #0f172a;");
 
         VBox activityBox = new VBox(15);
+        activityBox.setPadding(new Insets(30));
         activityBox.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-padding: 30; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-border-radius: 12; " +
-                        "-fx-background-radius: 12;"
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
         if (allReviews.isEmpty()) {
             Label noActivity = new Label("No activity yet. Start a study session to see your progress!");
-            noActivity.setStyle("-fx-text-fill: #6b7280;");
+            noActivity.setFont(Font.font(14));
+            noActivity.setStyle("-fx-text-fill: #64748b;");
             activityBox.getChildren().add(noActivity);
         } else {
-            // Show last 5 reviews
-            List<Review> recentReviews = allReviews.subList(0, Math.min(5, allReviews.size()));
+            List<Review> recentReviews = allReviews.subList(0, Math.min(10, allReviews.size()));
 
             for (Review review : recentReviews) {
                 Question question = questionDAO.getById(review.getQuestionId());
@@ -1700,29 +2134,25 @@ public class MainApp extends Application {
 
         ScrollPane scrollPane = new ScrollPane(statsScreen);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: #f5f7fa;");
+        scrollPane.setStyle("-fx-background: #f8fafc; -fx-background-color: #f8fafc;");
 
         contentArea.getChildren().clear();
         contentArea.getChildren().add(scrollPane);
     }
 
     private VBox createTopicPerformanceCard(Topic topic) {
-        VBox card = new VBox(10);
+        VBox card = new VBox(12);
 
-        // Get questions for this topic
         List<Question> topicQuestions = questionDAO.getByTopicId(topic.getId());
 
         if (topicQuestions.isEmpty()) {
-            // Skip topics with no questions
             return card;
         }
 
-        // Calculate performance
         int totalQuestions = topicQuestions.size();
         int reviewedCount = 0;
         int correctCount = 0;
 
-        ReviewDAO reviewDAO = new ReviewDAO();
         for (Question q : topicQuestions) {
             Review latestReview = reviewDAO.getLatestReview(q.getId(), currentUserId);
             if (latestReview != null) {
@@ -1736,51 +2166,50 @@ public class MainApp extends Application {
         double successRate = reviewedCount > 0 ? (correctCount * 100.0 / reviewedCount) : 0;
         boolean isWeak = successRate < 70 && reviewedCount > 0;
 
-        // Header
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(header, Priority.ALWAYS);
 
         Label topicName = new Label(topic.getName());
         topicName.setFont(Font.font("System", FontWeight.BOLD, 16));
+        topicName.setStyle("-fx-text-fill: #0f172a;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Label stats = new Label(reviewedCount + " / " + totalQuestions + " reviewed");
-        stats.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 13px;");
+        stats.setFont(Font.font(13));
+        stats.setStyle("-fx-text-fill: #64748b;");
 
-        // Weak topic indicator
         if (isWeak) {
             Label weakBadge = new Label("⚠️ Needs Practice");
+            weakBadge.setPadding(new Insets(4, 10, 4, 10));
+            weakBadge.setFont(Font.font("System", FontWeight.BOLD, 11));
             weakBadge.setStyle(
                     "-fx-background-color: #fef2f2; " +
                             "-fx-text-fill: #ef4444; " +
-                            "-fx-padding: 4 10 4 10; " +
-                            "-fx-background-radius: 12; " +
-                            "-fx-font-size: 12px; " +
-                            "-fx-font-weight: bold;"
+                            "-fx-background-radius: 12;"
             );
             header.getChildren().addAll(topicName, spacer, stats, weakBadge);
         } else {
             header.getChildren().addAll(topicName, spacer, stats);
         }
 
-        // Progress bar
         ProgressBar progressBar = new ProgressBar(successRate / 100);
         progressBar.setPrefWidth(Double.MAX_VALUE);
-        progressBar.setPrefHeight(12);
+        progressBar.setPrefHeight(10);
         progressBar.setStyle(
                 isWeak ?
-                        "-fx-accent: #ef4444;" : // Red for weak topics
-                        "-fx-accent: #10b981;"   // Green for good topics
+                        "-fx-accent: #ef4444; -fx-background-color: #fee2e2; -fx-background-radius: 5;" :
+                        "-fx-accent: #10b981; -fx-background-color: #dcfce7; -fx-background-radius: 5;"
         );
 
-        // Percentage label
         Label percentage = new Label(String.format("%.0f%% success rate", successRate));
-        percentage.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 13px;");
+        percentage.setFont(Font.font(13));
+        percentage.setStyle("-fx-text-fill: #64748b;");
 
         card.getChildren().addAll(header, progressBar, percentage);
+        card.setStyle("-fx-padding: 10 0 10 0; -fx-border-color: #f1f5f9; -fx-border-width: 0 0 1 0;");
 
         return card;
     }
@@ -1788,15 +2217,13 @@ public class MainApp extends Application {
     private HBox createActivityItem(Question question, Review review) {
         HBox item = new HBox(15);
         item.setAlignment(Pos.CENTER_LEFT);
-        item.setPadding(new Insets(10, 0, 10, 0));
-        item.setStyle("-fx-border-color: #e5e7eb; -fx-border-width: 0 0 1 0;");
+        item.setPadding(new Insets(12, 0, 12, 0));
+        item.setStyle("-fx-border-color: #f1f5f9; -fx-border-width: 0 0 1 0;");
 
-        // Icon
         Label icon = new Label(review.isWasCorrect() ? "✅" : "❌");
-        icon.setFont(Font.font(20));
+        icon.setFont(Font.font(24));
 
-        // Question text
-        VBox textBox = new VBox(5);
+        VBox textBox = new VBox(6);
         HBox.setHgrow(textBox, Priority.ALWAYS);
 
         String questionText = question.getQuestionText();
@@ -1806,41 +2233,43 @@ public class MainApp extends Application {
 
         Label questionLabel = new Label(questionText);
         questionLabel.setFont(Font.font(14));
+        questionLabel.setStyle("-fx-text-fill: #0f172a;");
         questionLabel.setWrapText(true);
 
         Topic topic = topicDAO.getById(question.getTopicId());
         Label topicLabel = new Label("📁 " + (topic != null ? topic.getName() : "Unknown"));
-        topicLabel.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 12px;");
+        topicLabel.setFont(Font.font(12));
+        topicLabel.setStyle("-fx-text-fill: #64748b;");
 
         textBox.getChildren().addAll(questionLabel, topicLabel);
 
-        // Next review date
-        Label nextReview = new Label("Next: " + review.getNextReviewDate().toString());
-        nextReview.setStyle("-fx-text-fill: #6b7280; -fx-font-size: 12px;");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
+        Label nextReview = new Label("Next: " + review.getNextReviewDate().format(formatter));
+        nextReview.setFont(Font.font(12));
+        nextReview.setStyle("-fx-text-fill: #64748b;");
 
         item.getChildren().addAll(icon, textBox, nextReview);
 
         return item;
     }
 
-    private int calculateStreak(List<Review> reviews) {
+    private int calculateStreak() {
+        List<Review> reviews = reviewDAO.getByUserId(currentUserId);
+
         if (reviews.isEmpty()) return 0;
 
-        // Simple streak calculation - consecutive days with reviews
-        java.time.LocalDate today = java.time.LocalDate.now();
+        LocalDate today = LocalDate.now();
         int streak = 0;
 
-        // Count unique days with reviews in the last 30 days
-        java.util.Set<java.time.LocalDate> reviewDays = new java.util.HashSet<>();
+        Set<LocalDate> reviewDays = new HashSet<>();
         for (Review review : reviews) {
-            java.time.LocalDate reviewDate = review.getReviewedAt().toLocalDate();
+            LocalDate reviewDate = review.getReviewedAt().toLocalDate();
             if (reviewDate.isAfter(today.minusDays(30))) {
                 reviewDays.add(reviewDate);
             }
         }
 
-        // Calculate consecutive days from today backwards
-        java.time.LocalDate checkDate = today;
+        LocalDate checkDate = today;
         while (reviewDays.contains(checkDate)) {
             streak++;
             checkDate = checkDate.minusDays(1);
@@ -1851,99 +2280,100 @@ public class MainApp extends Application {
 
     private void showSettings() {
         VBox settingsScreen = new VBox(30);
-        settingsScreen.setPadding(new Insets(30, 40, 30, 40));
+        settingsScreen.setPadding(new Insets(40, 50, 40, 50));
+        settingsScreen.setStyle("-fx-background-color: #f8fafc;");
 
-        // Header
         Label title = new Label("Settings");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setFont(Font.font("System", FontWeight.BOLD, 32));
+        title.setStyle("-fx-text-fill: #0f172a;");
 
         // User Profile Section
-        VBox profileSection = new VBox(15);
+        VBox profileSection = new VBox(20);
+        profileSection.setPadding(new Insets(30));
         profileSection.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-padding: 25; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-border-radius: 12; " +
-                        "-fx-background-radius: 12;"
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
         Label profileTitle = new Label("👤 User Profile");
-        profileTitle.setFont(Font.font("System", FontWeight.BOLD, 18));
+        profileTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
+        profileTitle.setStyle("-fx-text-fill: #0f172a;");
 
-        // User info
-        UserDAO userDAO = new UserDAO();
         com.semisaad.smartstudy.model.User user = userDAO.getById(currentUserId);
 
         HBox userInfo = new HBox(20);
         userInfo.setAlignment(Pos.CENTER_LEFT);
 
-        Label userAvatar = new Label("👤");
-        userAvatar.setFont(Font.font(50));
-        userAvatar.setStyle(
-                "-fx-background-color: linear-gradient(to bottom right, #3b82f6, #8b5cf6); " +
-                        "-fx-background-radius: 50; " +
-                        "-fx-min-width: 80; " +
-                        "-fx-min-height: 80; " +
-                        "-fx-alignment: center;"
+        StackPane avatarContainer = new StackPane();
+        avatarContainer.setPrefSize(80, 80);
+        avatarContainer.setStyle(
+                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                        "-fx-background-radius: 40;"
         );
+        Label userAvatar = new Label("👤");
+        userAvatar.setFont(Font.font(40));
+        avatarContainer.getChildren().add(userAvatar);
 
-        VBox userDetails = new VBox(5);
+        VBox userDetails = new VBox(6);
         Label userName = new Label(user != null ? user.getUsername() : "User");
         userName.setFont(Font.font("System", FontWeight.BOLD, 20));
+        userName.setStyle("-fx-text-fill: #0f172a;");
 
         Label userEmail = new Label(user != null && user.getEmail() != null ? user.getEmail() : "No email set");
-        userEmail.setStyle("-fx-text-fill: #6b7280;");
+        userEmail.setFont(Font.font(14));
+        userEmail.setStyle("-fx-text-fill: #64748b;");
 
         userDetails.getChildren().addAll(userName, userEmail);
 
-        userInfo.getChildren().addAll(userAvatar, userDetails);
+        userInfo.getChildren().addAll(avatarContainer, userDetails);
 
         profileSection.getChildren().addAll(profileTitle, userInfo);
 
-        // App Statistics Section
-        VBox statsSection = new VBox(15);
+        // Progress Section
+        VBox statsSection = new VBox(20);
+        statsSection.setPadding(new Insets(30));
         statsSection.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-padding: 25; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-border-radius: 12; " +
-                        "-fx-background-radius: 12;"
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
         Label statsTitle = new Label("📊 Your Progress");
-        statsTitle.setFont(Font.font("System", FontWeight.BOLD, 18));
+        statsTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
+        statsTitle.setStyle("-fx-text-fill: #0f172a;");
 
         var stats = studyService.getSessionStats(currentUserId);
         int totalQuestions = questionDAO.getCount();
         int totalTopics = topicDAO.getAll().size();
+        int todayReviews = getTodayReviewCount();
 
-        VBox statsGrid = new VBox(10);
+        VBox statsGrid = new VBox(12);
 
         statsGrid.getChildren().addAll(
                 createSettingRow("Total Questions in Library", String.valueOf(totalQuestions)),
                 createSettingRow("Total Topics", String.valueOf(totalTopics)),
                 createSettingRow("Questions Reviewed", String.valueOf(stats.getTotalReviews())),
                 createSettingRow("Success Rate", String.format("%.1f%%", stats.getSuccessRate())),
-                createSettingRow("Questions Due Today", String.valueOf(stats.getQuestionsDueToday()))
+                createSettingRow("Questions Due Today", String.valueOf(stats.getQuestionsDueToday())),
+                createSettingRow("Today's Reviews", String.valueOf(todayReviews)),
+                createSettingRow("Study Streak", calculateStreak() + " days")
         );
 
         statsSection.getChildren().addAll(statsTitle, statsGrid);
 
         // Preferences Section
-        VBox prefsSection = new VBox(15);
+        VBox prefsSection = new VBox(20);
+        prefsSection.setPadding(new Insets(30));
         prefsSection.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-padding: 25; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-border-radius: 12; " +
-                        "-fx-background-radius: 12;"
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
-        Label prefsTitle = new Label("⚙️ Preferences");
-        prefsTitle.setFont(Font.font("System", FontWeight.BOLD, 18));
+        Label prefsTitle = new Label("⚙️ Study Preferences");
+        prefsTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
+        prefsTitle.setStyle("-fx-text-fill: #0f172a;");
 
         // Daily goal
         HBox dailyGoalRow = new HBox(15);
@@ -1951,45 +2381,94 @@ public class MainApp extends Application {
 
         Label dailyGoalLabel = new Label("Daily Study Goal:");
         dailyGoalLabel.setFont(Font.font(14));
+        dailyGoalLabel.setStyle("-fx-text-fill: #0f172a;");
         dailyGoalLabel.setPrefWidth(200);
 
-        ComboBox<String> dailyGoalCombo = new ComboBox<>();
-        dailyGoalCombo.getItems().addAll("5 questions", "10 questions", "15 questions", "20 questions", "30 questions");
-        dailyGoalCombo.setValue("10 questions");
-        dailyGoalCombo.setPrefWidth(150);
+        ComboBox<Integer> dailyGoalCombo = new ComboBox<>();
+        dailyGoalCombo.getItems().addAll(5, 10, 15, 20, 30, 50);
+        dailyGoalCombo.setValue(dailyGoalQuestions);
+        dailyGoalCombo.setPrefWidth(120);
+        dailyGoalCombo.setPrefHeight(40);
+        dailyGoalCombo.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-background-radius: 10; " +
+                        "-fx-border-color: #e2e8f0; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-border-radius: 10;"
+        );
+        dailyGoalCombo.setOnAction(e -> {
+            dailyGoalQuestions = dailyGoalCombo.getValue();
+            showAlert(Alert.AlertType.INFORMATION, "Settings Updated", "Daily Goal Updated",
+                    "Your daily goal has been set to " + dailyGoalQuestions + " questions.");
+        });
 
-        dailyGoalRow.getChildren().addAll(dailyGoalLabel, dailyGoalCombo);
+        Label questionsLabel = new Label("questions/day");
+        questionsLabel.setFont(Font.font(14));
+        questionsLabel.setStyle("-fx-text-fill: #64748b;");
 
-        // Notifications (placeholder)
+        dailyGoalRow.getChildren().addAll(dailyGoalLabel, dailyGoalCombo, questionsLabel);
+
+        // Progress indicator for today's goal
+        HBox goalProgress = new HBox(15);
+        goalProgress.setAlignment(Pos.CENTER_LEFT);
+
+        Label goalProgressLabel = new Label("Today's Progress:");
+        goalProgressLabel.setFont(Font.font(14));
+        goalProgressLabel.setStyle("-fx-text-fill: #0f172a;");
+        goalProgressLabel.setPrefWidth(200);
+
+        ProgressBar todayProgress = new ProgressBar();
+        todayProgress.setProgress(dailyGoalQuestions > 0 ? Math.min(1.0, (double) todayReviews / dailyGoalQuestions) : 0);
+        todayProgress.setPrefWidth(300);
+        todayProgress.setPrefHeight(10);
+        todayProgress.setStyle(
+                "-fx-accent: #10b981; " +
+                        "-fx-background-color: #dcfce7; " +
+                        "-fx-background-radius: 5;"
+        );
+
+        Label goalText = new Label(todayReviews + " / " + dailyGoalQuestions);
+        goalText.setFont(Font.font("System", FontWeight.BOLD, 14));
+        goalText.setStyle("-fx-text-fill: " + (todayReviews >= dailyGoalQuestions ? "#10b981" : "#64748b") + ";");
+
+        goalProgress.getChildren().addAll(goalProgressLabel, todayProgress, goalText);
+
+        // Notifications
         HBox notifRow = new HBox(15);
         notifRow.setAlignment(Pos.CENTER_LEFT);
 
-        Label notifLabel = new Label("Daily Reminder:");
+        Label notifLabel = new Label("Daily Reminders:");
         notifLabel.setFont(Font.font(14));
+        notifLabel.setStyle("-fx-text-fill: #0f172a;");
         notifLabel.setPrefWidth(200);
 
         CheckBox notifCheckbox = new CheckBox("Enable daily study reminders");
-        notifCheckbox.setSelected(true);
+        notifCheckbox.setSelected(dailyRemindersEnabled);
+        notifCheckbox.setFont(Font.font(14));
+        notifCheckbox.setOnAction(e -> {
+            dailyRemindersEnabled = notifCheckbox.isSelected();
+            showAlert(Alert.AlertType.INFORMATION, "Settings Updated", "Reminders " + (dailyRemindersEnabled ? "Enabled" : "Disabled"),
+                    "Daily reminders have been " + (dailyRemindersEnabled ? "enabled" : "disabled") + ".");
+        });
 
         notifRow.getChildren().addAll(notifLabel, notifCheckbox);
 
-        prefsSection.getChildren().addAll(prefsTitle, dailyGoalRow, notifRow);
+        prefsSection.getChildren().addAll(prefsTitle, dailyGoalRow, goalProgress, notifRow);
 
         // About Section
-        VBox aboutSection = new VBox(15);
+        VBox aboutSection = new VBox(20);
+        aboutSection.setPadding(new Insets(30));
         aboutSection.setStyle(
                 "-fx-background-color: white; " +
-                        "-fx-padding: 25; " +
-                        "-fx-border-color: #e5e7eb; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-border-radius: 12; " +
-                        "-fx-background-radius: 12;"
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
         Label aboutTitle = new Label("ℹ️ About");
-        aboutTitle.setFont(Font.font("System", FontWeight.BOLD, 18));
+        aboutTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
+        aboutTitle.setStyle("-fx-text-fill: #0f172a;");
 
-        VBox aboutInfo = new VBox(8);
+        VBox aboutInfo = new VBox(10);
         aboutInfo.getChildren().addAll(
                 createSettingRow("App Name", "Smart Study System"),
                 createSettingRow("Version", "1.0.0"),
@@ -2005,33 +2484,34 @@ public class MainApp extends Application {
         HBox actionButtons = new HBox(15);
 
         Button resetBtn = new Button("🔄 Reset All Progress");
-        resetBtn.setPrefHeight(40);
+        resetBtn.setPrefHeight(44);
+        resetBtn.setPrefWidth(200);
+        resetBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         resetBtn.setStyle(
                 "-fx-background-color: #fef2f2; " +
                         "-fx-text-fill: #ef4444; " +
                         "-fx-border-color: #ef4444; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-background-radius: 8; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         resetBtn.setOnAction(e -> showResetConfirmation());
 
         Button exportBtn = new Button("📥 Export Data");
-        exportBtn.setPrefHeight(40);
+        exportBtn.setPrefHeight(44);
+        exportBtn.setPrefWidth(180);
+        exportBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         exportBtn.setStyle(
                 "-fx-background-color: #eff6ff; " +
                         "-fx-text-fill: #3b82f6; " +
                         "-fx-border-color: #3b82f6; " +
-                        "-fx-border-width: 1; " +
-                        "-fx-background-radius: 8; " +
+                        "-fx-border-width: 2; " +
+                        "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
         exportBtn.setOnAction(e -> {
-            Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Export Data");
-            alert.setHeaderText("Feature Coming Soon!");
-            alert.setContentText("Data export functionality will be available in a future update.");
-            alert.showAndWait();
+            showAlert(Alert.AlertType.INFORMATION, "Export Data", "Feature Coming Soon!",
+                    "Data export functionality will be available in a future update.");
         });
 
         actionButtons.getChildren().addAll(resetBtn, exportBtn);
@@ -2047,7 +2527,7 @@ public class MainApp extends Application {
 
         ScrollPane scrollPane = new ScrollPane(settingsScreen);
         scrollPane.setFitToWidth(true);
-        scrollPane.setStyle("-fx-background-color: #f5f7fa;");
+        scrollPane.setStyle("-fx-background: #f8fafc; -fx-background-color: #f8fafc;");
 
         contentArea.getChildren().clear();
         contentArea.getChildren().add(scrollPane);
@@ -2056,19 +2536,20 @@ public class MainApp extends Application {
     private HBox createSettingRow(String label, String value) {
         HBox row = new HBox();
         row.setAlignment(Pos.CENTER_LEFT);
-        row.setPadding(new Insets(8, 0, 8, 0));
+        row.setPadding(new Insets(10, 0, 10, 0));
+        row.setStyle("-fx-border-color: #f1f5f9; -fx-border-width: 0 0 1 0;");
         HBox.setHgrow(row, Priority.ALWAYS);
 
         Label labelText = new Label(label);
         labelText.setFont(Font.font(14));
-        labelText.setStyle("-fx-text-fill: #6b7280;");
+        labelText.setStyle("-fx-text-fill: #64748b;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         Label valueText = new Label(value);
         valueText.setFont(Font.font("System", FontWeight.BOLD, 14));
-        valueText.setStyle("-fx-text-fill: #1f2937;");
+        valueText.setStyle("-fx-text-fill: #0f172a;");
 
         row.getChildren().addAll(labelText, spacer, valueText);
 
@@ -2091,8 +2572,6 @@ public class MainApp extends Application {
 
         confirmation.showAndWait().ifPresent(response -> {
             if (response == yesButton) {
-                // Delete all reviews for this user
-                ReviewDAO reviewDAO = new ReviewDAO();
                 List<Review> userReviews = reviewDAO.getByUserId(currentUserId);
 
                 int deletedCount = 0;
@@ -2102,32 +2581,49 @@ public class MainApp extends Application {
                     }
                 }
 
-                Alert result = new Alert(Alert.AlertType.INFORMATION);
-                result.setTitle("Reset Complete");
-                result.setHeaderText("Progress Reset!");
-                result.setContentText("Deleted " + deletedCount + " review records.\nYour learning journey starts fresh!");
-                result.showAndWait();
+                showAlert(Alert.AlertType.INFORMATION, "Reset Complete", "Progress Reset!",
+                        "Deleted " + deletedCount + " review records. Your learning journey starts fresh!");
 
-                // Refresh the settings screen to show updated stats
+                refreshSidebar();
                 showSettings();
             }
         });
     }
 
-    public static void main(String[] args) {
-        launch(args);
-    }
-
     private void setActiveNavButton(Button button) {
-        // Remove active class from previous button
         if (activeNavButton != null) {
-            activeNavButton.getStyleClass().remove("nav-button-active");
+            String baseStyle =
+                    "-fx-background-radius: 12; " +
+                            "-fx-cursor: hand; " +
+                            "-fx-padding: 0 0 0 20;";
+            activeNavButton.setStyle(baseStyle +
+                    "-fx-background-color: transparent; " +
+                    "-fx-text-fill: rgba(255,255,255,0.7);"
+            );
         }
 
-        // Add active class to new button
-        button.getStyleClass().add("nav-button-active");
+        String baseStyle =
+                "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-padding: 0 0 0 20;";
+        button.setStyle(baseStyle +
+                "-fx-background-color: rgba(255,255,255,0.15); " +
+                "-fx-text-fill: white; " +
+                "-fx-font-weight: bold;"
+        );
 
-        // Update the active button reference
         activeNavButton = button;
+    }
+
+    private void showAlert(Alert.AlertType type, String title, String header, String content) {
+        Alert alert = new Alert(type);
+        alert.setTitle(title);
+        alert.setHeaderText(header);
+        alert.setContentText(content);
+        alert.showAndWait();
+    }
+
+    public static void main(String[] args) {
+        launch(args);
     }
 }
