@@ -20,6 +20,7 @@ import com.semisaad.smartstudy.model.Review;
 import com.semisaad.smartstudy.model.Topic;
 import com.semisaad.smartstudy.model.Question;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -40,6 +41,8 @@ public class MainApp extends Application {
     private int currentUserId = 1; // Using user ID 1 (saad)
     private List<Question> currentStudyQuestions;
     private int currentQuestionIndex = 0;
+    private Set<Integer> answeredThisSession = new HashSet<>();
+
 
     // Settings preferences
     private int dailyGoalQuestions = 10;
@@ -87,13 +90,22 @@ public class MainApp extends Application {
         primaryStage.show();
     }
 
+    private int getUniqueReviewedCount() {
+        List<Review> allReviews = reviewDAO.getByUserId(currentUserId);
+        Set<Integer> uniqueQuestionIds = new HashSet<>();
+        for (Review review : allReviews) {
+            uniqueQuestionIds.add(review.getQuestionId());
+        }
+        return uniqueQuestionIds.size();
+    }
+
     private VBox createSidebar() {
         VBox sidebar = new VBox(10);
         sidebar.getStyleClass().add("sidebar");
         sidebar.setPrefWidth(280);
         sidebar.setPadding(new Insets(30, 20, 30, 20));
         sidebar.setStyle(
-                "-fx-background-color: linear-gradient(to bottom, #1e293b, #0f172a); " +
+                "-fx-background-color: #02A1D4;" +
                         "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 15, 0, 5, 0);"
         );
 
@@ -187,7 +199,7 @@ public class MainApp extends Application {
         storageLabel.setStyle("-fx-text-fill: rgba(255,255,255,0.9); -fx-font-size: 13px;");
 
         int totalQuestions = questionDAO.getCount();
-        int reviewedQuestions = studyService.getSessionStats(currentUserId).getTotalReviews();
+        int reviewedQuestions = getUniqueReviewedCount();
 
         Label storageText = new Label(reviewedQuestions + " / " + totalQuestions);
         storageText.setFont(Font.font("System", FontWeight.BOLD, 24));
@@ -299,11 +311,11 @@ public class MainApp extends Application {
         quickStudyBtn.setPrefWidth(200);
         quickStudyBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         quickStudyBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #10b981 0%, #059669 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(16, 185, 129, 0.4), 12, 0, 0, 4);"
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         quickStudyBtn.setOnAction(e -> showStudySession());
 
@@ -338,7 +350,7 @@ public class MainApp extends Application {
         Button viewAllTopics = new Button("View All →");
         viewAllTopics.setStyle(
                 "-fx-background-color: transparent; " +
-                        "-fx-text-fill: #667eea; " +
+                        "-fx-text-fill: #3b82f6; " +
                         "-fx-font-weight: bold; " +
                         "-fx-cursor: hand; " +
                         "-fx-font-size: 14px;"
@@ -628,11 +640,11 @@ public class MainApp extends Application {
         addTopicBtn.setPrefWidth(140);
         addTopicBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         addTopicBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: #34aeeb;" +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         addTopicBtn.setOnAction(e -> showAddTopicDialog());
 
@@ -707,10 +719,11 @@ public class MainApp extends Application {
         actionBtn.setPrefWidth(160);
         actionBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         actionBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
-                        "-fx-cursor: hand;"
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         actionBtn.setOnAction(e -> action.run());
 
@@ -889,8 +902,8 @@ public class MainApp extends Application {
         cancelBtn.setPrefHeight(44);
         cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f1f5f9; " +
-                        "-fx-text-fill: #475569; " +
+                "-fx-background-color: #eff6ff; " +
+                        "-fx-text-fill: #3b82f6; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
@@ -901,11 +914,13 @@ public class MainApp extends Application {
         saveBtn.setPrefHeight(44);
         saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
-                        "-fx-cursor: hand;"
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
+
         saveBtn.setOnAction(e -> {
             String name = nameField.getText().trim();
             String description = descField.getText().trim();
@@ -937,8 +952,8 @@ public class MainApp extends Application {
 
         Scene dialogScene = new Scene(dialogContent);
         dialog.setScene(dialogScene);
-        dialog.setMinWidth(750);
         dialog.setMinHeight(600);
+        dialog.setMinWidth(750);
         dialog.show();
     }
 
@@ -1001,8 +1016,8 @@ public class MainApp extends Application {
         cancelBtn.setPrefHeight(44);
         cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f1f5f9; " +
-                        "-fx-text-fill: #475569; " +
+                "-fx-background-color: #eff6ff; " +
+                        "-fx-text-fill: #3b82f6; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
@@ -1013,10 +1028,11 @@ public class MainApp extends Application {
         saveBtn.setPrefHeight(44);
         saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
-                        "-fx-cursor: hand;"
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         saveBtn.setOnAction(e -> {
             topic.setName(nameField.getText().trim());
@@ -1038,8 +1054,8 @@ public class MainApp extends Application {
 
         Scene dialogScene = new Scene(dialogContent);
         dialog.setScene(dialogScene);
-        dialog.setMinWidth(750);
-        dialog.setMinHeight(600);
+        dialog.setMinHeight(650);
+        dialog.setMinWidth(700);
         dialog.show();
     }
 
@@ -1096,11 +1112,11 @@ public class MainApp extends Application {
         addQuestionBtn.setPrefWidth(150);
         addQuestionBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         addQuestionBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         addQuestionBtn.setOnAction(e -> showAddQuestionDialog());
 
@@ -1312,6 +1328,7 @@ public class MainApp extends Application {
         Stage dialog = new Stage();
         dialog.setTitle("Add New Question");
         dialog.initModality(Modality.APPLICATION_MODAL);
+        dialog.setOnCloseRequest(e -> showQuestions());
 
         VBox dialogContent = new VBox(20);
         dialogContent.setPadding(new Insets(40));
@@ -1419,23 +1436,32 @@ public class MainApp extends Application {
         cancelBtn.setPrefHeight(44);
         cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f1f5f9; " +
-                        "-fx-text-fill: #475569; " +
+                "-fx-background-color: #eff6ff; " +
+                        "-fx-text-fill: #3b82f6; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
-        cancelBtn.setOnAction(e -> dialog.close());
+
+        cancelBtn.setOnAction(e -> {
+            dialog.close();
+            showQuestions();  // refresh list when user manually closes
+        });
 
         Button saveBtn = new Button("Save Question");
         saveBtn.setPrefWidth(150);
         saveBtn.setPrefHeight(44);
         saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
-                        "-fx-cursor: hand;"
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
+
+        Label successMsg = new Label();
+        successMsg.setStyle("-fx-text-fill: #10b981; -fx-font-size: 13px;");
+
         saveBtn.setOnAction(e -> {
             String questionText = questionField.getText().trim();
             String answer = answerField.getText().trim();
@@ -1443,6 +1469,7 @@ public class MainApp extends Application {
             String difficulty = difficultyCombo.getValue();
 
             if (questionText.isEmpty() || answer.isEmpty()) {
+                successMsg.setText(""); // clear success if they retry
                 showAlert(Alert.AlertType.ERROR, "Validation Error", "Missing Information",
                         "Please fill in both question and answer fields.");
                 return;
@@ -1460,12 +1487,12 @@ public class MainApp extends Application {
             boolean saved = questionDAO.insert(newQuestion);
 
             if (saved) {
-                showAlert(Alert.AlertType.INFORMATION, "Success", "Question Added!",
-                        "The question has been added successfully.");
-                dialog.close();
-                showQuestions();
+                questionField.clear();
+                answerField.clear();
+                successMsg.setText("✅ Question saved! Add another or close when done.");
                 refreshSidebar();
             } else {
+                successMsg.setText("");
                 showAlert(Alert.AlertType.ERROR, "Error", "Save Failed",
                         "Could not save the question. Please try again.");
             }
@@ -1478,13 +1505,14 @@ public class MainApp extends Application {
                 questionBox,
                 answerBox,
                 metaRow,
-                buttonBox
+                buttonBox,
+                successMsg
         );
 
         Scene dialogScene = new Scene(dialogContent);
-        dialog.setScene(dialogScene);
-        dialog.setMinWidth(750);
         dialog.setMinHeight(600);
+        dialog.setMinWidth(750);
+        dialog.setScene(dialogScene);
         dialog.show();
     }
 
@@ -1596,8 +1624,8 @@ public class MainApp extends Application {
         cancelBtn.setPrefHeight(44);
         cancelBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         cancelBtn.setStyle(
-                "-fx-background-color: #f1f5f9; " +
-                        "-fx-text-fill: #475569; " +
+                "-fx-background-color: #eff6ff; " +
+                        "-fx-text-fill: #3b82f6; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
@@ -1608,10 +1636,11 @@ public class MainApp extends Application {
         saveBtn.setPrefHeight(44);
         saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
-                        "-fx-cursor: hand;"
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         saveBtn.setOnAction(e -> {
             question.setQuestionText(questionField.getText().trim());
@@ -1647,8 +1676,8 @@ public class MainApp extends Application {
 
         Scene dialogScene = new Scene(dialogContent);
         dialog.setScene(dialogScene);
-        dialog.setMinWidth(750);
         dialog.setMinHeight(600);
+        dialog.setMinWidth(750);
         dialog.show();
     }
 
@@ -1674,10 +1703,37 @@ public class MainApp extends Application {
     }
 
     private void showStudySession() {
-        currentStudyQuestions = studyService.getDueQuestions(currentUserId);
+        // Only reset if this is a fresh session start, not mid-session navigation
+        answeredThisSession.clear();
 
+        List<Question> dueQuestions = studyService.getDueQuestions(currentUserId);
+
+        // Remove any already answered + cap to daily goal
+        dueQuestions.removeIf(q -> answeredThisSession.contains(q.getId()));
+        if (dueQuestions.size() > dailyGoalQuestions) {
+            dueQuestions = new ArrayList<>(dueQuestions.subList(0, dailyGoalQuestions));
+        }
+
+        currentStudyQuestions = dueQuestions;
+
+        // If no due questions, fill remaining slots with new questions
         if (currentStudyQuestions.isEmpty()) {
-            currentStudyQuestions = studyService.getNewQuestions(currentUserId, dailyGoalQuestions);
+            currentStudyQuestions = studyService.getNewQuestions(
+                    currentUserId,
+                    dailyGoalQuestions,
+                    new ArrayList<>(answeredThisSession)  // pass excluded IDs
+            );
+        } else if (currentStudyQuestions.size() < dailyGoalQuestions) {
+            // Optionally: top up with new questions if due < daily goal
+            int remaining = dailyGoalQuestions - currentStudyQuestions.size();
+            List<Question> topUp = studyService.getNewQuestions(
+                    currentUserId,
+                    remaining,
+                    currentStudyQuestions.stream()
+                            .map(Question::getId)
+                            .collect(java.util.stream.Collectors.toList())
+            );
+            currentStudyQuestions.addAll(topUp);
         }
 
         currentQuestionIndex = 0;
@@ -1718,10 +1774,11 @@ public class MainApp extends Application {
         backBtn.setPrefWidth(200);
         backBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         backBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
-                        "-fx-cursor: hand;"
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         backBtn.setOnAction(e -> showDashboard());
 
@@ -1823,11 +1880,11 @@ public class MainApp extends Application {
         showAnswerBtn.setPrefHeight(50);
         showAnswerBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         showAnswerBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
 
         Button correctBtn = new Button("✅ I Got It Right");
@@ -1906,9 +1963,12 @@ public class MainApp extends Application {
         boolean saved = studyService.submitAnswer(question.getId(), currentUserId, wasCorrect);
 
         if (saved) {
+            answeredThisSession.add(question.getId()); // Track it
             showAnswerFeedback(wasCorrect);
 
-            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(1));
+            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(
+                    javafx.util.Duration.seconds(1)
+            );
             pause.setOnFinished(e -> nextQuestion());
             pause.play();
         } else {
@@ -1987,11 +2047,11 @@ public class MainApp extends Application {
         dashboardBtn.setPrefHeight(54);
         dashboardBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         dashboardBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
+                "-fx-background-color: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
-                        "-fx-effect: dropshadow(gaussian, rgba(102, 126, 234, 0.4), 12, 0, 0, 4);"
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         dashboardBtn.setOnAction(e -> {
             refreshSidebar();

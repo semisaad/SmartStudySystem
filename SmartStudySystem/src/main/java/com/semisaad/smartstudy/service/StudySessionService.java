@@ -8,18 +8,15 @@ import com.semisaad.smartstudy.service.SpacedRepetitionService.ReviewResult;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
-/**
- * Manages study sessions - getting due questions, submitting answers, tracking progress
- */
 public class StudySessionService {
 
     private final QuestionDAO questionDAO;
     private final ReviewDAO reviewDAO;
     private final SpacedRepetitionService spacedRepetitionService;
 
-    // Constructor
     public StudySessionService() {
         this.questionDAO = new QuestionDAO();
         this.reviewDAO = new ReviewDAO();
@@ -27,16 +24,11 @@ public class StudySessionService {
     }
 
     /**
-     * Get all questions that are due for review today for a user
-     *
-     * @param userId The user ID
-     * @return List of questions due for review
+     * Get questions due for review today, capped by the daily goal limit.
      */
     public List<Question> getDueQuestions(int userId) {
-        // Get question IDs that are due
         List<Integer> dueQuestionIds = reviewDAO.getDueQuestionIds(userId);
 
-        // Fetch the actual Question objects
         List<Question> dueQuestions = new ArrayList<>();
         for (int questionId : dueQuestionIds) {
             Question question = questionDAO.getById(questionId);
@@ -49,25 +41,22 @@ public class StudySessionService {
     }
 
     /**
-     * Get questions that have NEVER been reviewed by this user
-     * (New questions to learn)
-     *
-     * @param userId The user ID
-     * @param limit Maximum number of new questions to return
-     * @return List of new questions
+     * Get questions that have NEVER been reviewed by this user,
+     * excluding any question IDs already handled this session.
      */
-    public List<Question> getNewQuestions(int userId, int limit) {
+    public List<Question> getNewQuestions(int userId, int limit, List<Integer> excludeIds) {
         List<Question> allQuestions = questionDAO.getAll();
         List<Question> newQuestions = new ArrayList<>();
 
-        // Find questions this user has never reviewed
         for (Question question : allQuestions) {
+            // Skip if already done this session
+            if (excludeIds.contains(question.getId())) {
+                continue;
+            }
+
             Review latestReview = reviewDAO.getLatestReview(question.getId(), userId);
-
             if (latestReview == null) {
-                // Never reviewed = new question!
                 newQuestions.add(question);
-
                 if (newQuestions.size() >= limit) {
                     break;
                 }
@@ -78,25 +67,23 @@ public class StudySessionService {
     }
 
     /**
-     * Submit a user's answer to a question
-     * This calculates the next review date using SM-2 and saves it
-     *
-     * @param questionId The question ID
-     * @param userId The user ID
-     * @param wasCorrect Did the user answer correctly?
-     * @return true if successful, false otherwise
+     * Overload for backward compatibility — no exclusions.
+     */
+    public List<Question> getNewQuestions(int userId, int limit) {
+        return getNewQuestions(userId, limit, new ArrayList<>());
+    }
+
+    /**
+     * Submit answer, save review with correct SM-2 calculation.
      */
     public boolean submitAnswer(int questionId, int userId, boolean wasCorrect) {
-        // Get the latest review for this question (if it exists)
         Review latestReview = reviewDAO.getLatestReview(questionId, userId);
 
         ReviewResult result;
 
         if (latestReview == null) {
-            // First time reviewing this question
             result = spacedRepetitionService.calculateFirstReview(wasCorrect);
         } else {
-            // Calculate based on previous review
             result = spacedRepetitionService.calculateNextReview(
                     wasCorrect,
                     latestReview.getEaseFactor(),
@@ -105,7 +92,6 @@ public class StudySessionService {
             );
         }
 
-        // Create a new review record
         Review newReview = new Review(
                 questionId,
                 userId,
@@ -115,28 +101,30 @@ public class StudySessionService {
                 result.getNextReviewDate()
         );
 
-        // Save it to database
         return reviewDAO.insert(newReview);
     }
 
     /**
-     * Get the number of consecutive correct answers for a question
-     *
-     * @param questionId The question ID
-     * @param userId The user ID
-     * @return Number of consecutive correct reviews
+     * FIXED: Sort reviews by date descending before counting
+     * consecutive correct answers, so old wrong answers don't
+     * incorrectly reset the streak count.
      */
     private int getRepetitionCount(int questionId, int userId) {
         List<Review> reviews = reviewDAO.getByQuestionId(questionId);
 
-        // Count consecutive correct answers from most recent
+        // Sort most-recent first so we count the current streak correctly
+        reviews.sort(Comparator.comparing(
+                r -> r.getReviewedAt().toLocalDate(),
+                Comparator.reverseOrder()
+        ));
+
         int count = 0;
         for (Review review : reviews) {
             if (review.getUserId() == userId) {
                 if (review.isWasCorrect()) {
                     count++;
                 } else {
-                    break; // Stop at first wrong answer
+                    break; // Now correctly stops at most recent wrong answer
                 }
             }
         }
@@ -144,12 +132,6 @@ public class StudySessionService {
         return count;
     }
 
-    /**
-     * Get study session statistics for a user
-     *
-     * @param userId The user ID
-     * @return SessionStats object with various metrics
-     */
     public SessionStats getSessionStats(int userId) {
         List<Review> userReviews = reviewDAO.getByUserId(userId);
 
@@ -168,13 +150,6 @@ public class StudySessionService {
         return new SessionStats(totalReviews, correctCount, dueToday, successRate);
     }
 
-    /**
-     * Get questions for a specific topic that are due for review
-     *
-     * @param userId The user ID
-     * @param topicId The topic ID
-     * @return List of due questions for that topic
-     */
     public List<Question> getDueQuestionsByTopic(int userId, int topicId) {
         List<Question> allDueQuestions = getDueQuestions(userId);
         List<Question> topicDueQuestions = new ArrayList<>();
@@ -188,9 +163,6 @@ public class StudySessionService {
         return topicDueQuestions;
     }
 
-    /**
-     * Inner class to hold session statistics
-     */
     public static class SessionStats {
         private final int totalReviews;
         private final int correctAnswers;
@@ -204,21 +176,10 @@ public class StudySessionService {
             this.successRate = successRate;
         }
 
-        public int getTotalReviews() {
-            return totalReviews;
-        }
-
-        public int getCorrectAnswers() {
-            return correctAnswers;
-        }
-
-        public int getQuestionsDueToday() {
-            return questionsDueToday;
-        }
-
-        public double getSuccessRate() {
-            return successRate;
-        }
+        public int getTotalReviews() { return totalReviews; }
+        public int getCorrectAnswers() { return correctAnswers; }
+        public int getQuestionsDueToday() { return questionsDueToday; }
+        public double getSuccessRate() { return successRate; }
 
         @Override
         public String toString() {
