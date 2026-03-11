@@ -25,6 +25,7 @@ import java.util.List;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
+import java.util.Collections;
 import java.util.Set;
 
 public class MainApp extends Application {
@@ -47,6 +48,7 @@ public class MainApp extends Application {
     // Settings preferences
     private int dailyGoalQuestions = 10;
     private boolean dailyRemindersEnabled = true;
+    private boolean sessionNeedsReload = true;
 
     @Override
     public void start(Stage primaryStage) {
@@ -1582,7 +1584,9 @@ public class MainApp extends Application {
         for (Topic t : topics) {
             topicCombo.getItems().add(t.getName());
         }
-        topicCombo.setValue(currentTopic != null ? currentTopic.getName() : topics.get(0).getName());
+        if (!topics.isEmpty()) {
+            topicCombo.setValue(currentTopic != null ? currentTopic.getName() : topics.get(0).getName());
+        }
         topicCombo.setPrefHeight(48);
         topicCombo.setMaxWidth(Double.MAX_VALUE);
         topicCombo.setStyle(
@@ -1685,8 +1689,9 @@ public class MainApp extends Application {
         Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
         confirmation.setTitle("Delete Question");
         confirmation.setHeaderText("Are you sure?");
-        confirmation.setContentText("Do you want to delete this question?\n\n\"" +
-                question.getQuestionText().substring(0, Math.min(50, question.getQuestionText().length())) + "...\"");
+        String preview = question.getQuestionText();
+        String truncated = preview.length() > 50 ? preview.substring(0, 50) + "..." : preview;
+        confirmation.setContentText("Do you want to delete this question?\n\n\"" + truncated + "\"");
 
         confirmation.showAndWait().ifPresent(response -> {
             if (response == ButtonType.OK) {
@@ -1703,38 +1708,48 @@ public class MainApp extends Application {
     }
 
     private void showStudySession() {
-        // Only reset if this is a fresh session start, not mid-session navigation
-        answeredThisSession.clear();
+        if (currentStudyQuestions == null
+                || currentQuestionIndex >= currentStudyQuestions.size()
+                || sessionNeedsReload) {
+            answeredThisSession.clear();
+            sessionNeedsReload = false;
+            loadStudyQuestions();
+        } else {
+            showQuestionCard();
+        }
+    }
 
-        List<Question> dueQuestions = studyService.getDueQuestions(currentUserId);
-
-        // Remove any already answered + cap to daily goal
+    private void loadStudyQuestions() {
+        List<Question> dueQuestions = new ArrayList<>(studyService.getDueQuestions(currentUserId));
         dueQuestions.removeIf(q -> answeredThisSession.contains(q.getId()));
+        Collections.shuffle(dueQuestions);
+
         if (dueQuestions.size() > dailyGoalQuestions) {
             dueQuestions = new ArrayList<>(dueQuestions.subList(0, dailyGoalQuestions));
         }
 
         currentStudyQuestions = dueQuestions;
 
-        // If no due questions, fill remaining slots with new questions
         if (currentStudyQuestions.isEmpty()) {
-            currentStudyQuestions = studyService.getNewQuestions(
-                    currentUserId,
-                    dailyGoalQuestions,
-                    new ArrayList<>(answeredThisSession)  // pass excluded IDs
-            );
+            currentStudyQuestions = new ArrayList<>(studyService.getNewQuestions(
+                    currentUserId, dailyGoalQuestions, new ArrayList<>(answeredThisSession)
+            ));
+            Collections.shuffle(currentStudyQuestions);
         } else if (currentStudyQuestions.size() < dailyGoalQuestions) {
-            // Optionally: top up with new questions if due < daily goal
             int remaining = dailyGoalQuestions - currentStudyQuestions.size();
-            List<Question> topUp = studyService.getNewQuestions(
-                    currentUserId,
-                    remaining,
+            List<Question> topUp = new ArrayList<>(studyService.getNewQuestions(
+                    currentUserId, remaining,
                     currentStudyQuestions.stream()
                             .map(Question::getId)
                             .collect(java.util.stream.Collectors.toList())
-            );
+            ));
+            Collections.shuffle(topUp);
             currentStudyQuestions.addAll(topUp);
         }
+
+        currentStudyQuestions = studyService.getPrioritizedQuestions(
+                currentUserId, currentStudyQuestions
+        );
 
         currentQuestionIndex = 0;
 
@@ -1742,7 +1757,6 @@ public class MainApp extends Application {
             showNoQuestionsScreen();
             return;
         }
-
         showQuestionCard();
     }
 
@@ -1774,7 +1788,7 @@ public class MainApp extends Application {
         backBtn.setPrefWidth(200);
         backBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         backBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
@@ -1963,7 +1977,7 @@ public class MainApp extends Application {
         boolean saved = studyService.submitAnswer(question.getId(), currentUserId, wasCorrect);
 
         if (saved) {
-            answeredThisSession.add(question.getId()); // Track it
+            answeredThisSession.add(question.getId());
             showAnswerFeedback(wasCorrect);
 
             javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(
@@ -2033,21 +2047,12 @@ public class MainApp extends Application {
         statsText.setFont(Font.font("System", FontWeight.BOLD, 24));
         statsText.setStyle("-fx-text-fill: #10b981;");
 
-        // Check if daily goal reached
-        int todayReviews = getTodayReviewCount();
-        if (todayReviews >= dailyGoalQuestions) {
-            Label goalReached = new Label("🎯 Daily Goal Reached!");
-            goalReached.setFont(Font.font("System", FontWeight.BOLD, 18));
-            goalReached.setStyle("-fx-text-fill: #f59e0b;");
-            complete.getChildren().add(goalReached);
-        }
-
         Button dashboardBtn = new Button("🏠 Back to Dashboard");
         dashboardBtn.setPrefWidth(250);
         dashboardBtn.setPrefHeight(54);
         dashboardBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         dashboardBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); " +
+                "-fx-background-color: #34aeeb;" +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
@@ -2058,8 +2063,17 @@ public class MainApp extends Application {
             showDashboard();
         });
 
-        complete.getChildren().addAll(icon, title, message, statsText, dashboardBtn);
+        complete.getChildren().addAll(icon, title, message, statsText);
 
+        int todayReviews = getTodayReviewCount();
+        if (todayReviews >= dailyGoalQuestions) {
+            Label goalReached = new Label("🎯 Daily Goal Reached!");
+            goalReached.setFont(Font.font("System", FontWeight.BOLD, 18));
+            goalReached.setStyle("-fx-text-fill: #f59e0b;");
+            complete.getChildren().add(goalReached);
+        }
+
+        complete.getChildren().add(dashboardBtn);
         contentArea.getChildren().clear();
         contentArea.getChildren().add(complete);
     }
@@ -2456,8 +2470,10 @@ public class MainApp extends Application {
                         "-fx-border-width: 2; " +
                         "-fx-border-radius: 10;"
         );
+
         dailyGoalCombo.setOnAction(e -> {
             dailyGoalQuestions = dailyGoalCombo.getValue();
+            sessionNeedsReload = true; // ← add this line
             showAlert(Alert.AlertType.INFORMATION, "Settings Updated", "Daily Goal Updated",
                     "Your daily goal has been set to " + dailyGoalQuestions + " questions.");
         });

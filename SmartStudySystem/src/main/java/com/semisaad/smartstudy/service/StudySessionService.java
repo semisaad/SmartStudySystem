@@ -191,4 +191,37 @@ public class StudySessionService {
                     '}';
         }
     }
+
+    public List<Question> getPrioritizedQuestions(int userId, List<Question> questions) {
+        questions.sort((q1, q2) -> {
+            int score1 = getQuestionPriority(q1.getId(), userId);
+            int score2 = getQuestionPriority(q2.getId(), userId);
+            return Integer.compare(score1, score2);
+        });
+        return questions;
+    }
+
+    private int getQuestionPriority(int questionId, int userId) {
+        Review latest = reviewDAO.getLatestReview(questionId, userId);
+
+        if (latest == null) {
+            return 50; // New question — medium priority
+        }
+
+        if (!latest.isWasCorrect()) {
+            return 10; // Got wrong last time — show first
+        }
+
+        int easePriority = (int)(latest.getEaseFactor() * 10);
+
+        long daysOverdue = java.time.temporal.ChronoUnit.DAYS.between(
+                latest.getNextReviewDate(), LocalDate.now()
+        );
+
+        if (daysOverdue > 0) {
+            return Math.max(10, easePriority - (int) daysOverdue * 5);
+        }
+
+        return easePriority;
+    }
 }
