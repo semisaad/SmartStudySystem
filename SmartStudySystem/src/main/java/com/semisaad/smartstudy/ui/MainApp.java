@@ -39,46 +39,37 @@ public class MainApp extends Application {
     private QuestionDAO questionDAO;
     private ReviewDAO reviewDAO;
     private UserDAO userDAO;
-    private int currentUserId = 1; // Using user ID 1 (saad)
+    private int currentUserId = 1;
     private List<Question> currentStudyQuestions;
     private int currentQuestionIndex = 0;
     private Set<Integer> answeredThisSession = new HashSet<>();
 
-
-    // Settings preferences
     private int dailyGoalQuestions = 10;
     private boolean dailyRemindersEnabled = true;
     private boolean sessionNeedsReload = true;
 
     @Override
     public void start(Stage primaryStage) {
-        // Initialize services
         studyService = new StudySessionService();
         topicDAO = new TopicDAO();
         questionDAO = new QuestionDAO();
         reviewDAO = new ReviewDAO();
         userDAO = new UserDAO();
 
-        // Create main layout
         mainLayout = new BorderPane();
         mainLayout.getStyleClass().add("main-container");
 
-        // Create sidebar
         sidebar = createSidebar();
         mainLayout.setLeft(sidebar);
 
-        // Create content area
         contentArea = new StackPane();
         contentArea.getStyleClass().add("content-area");
         mainLayout.setCenter(contentArea);
 
-        // Show dashboard by default
         showDashboard();
 
-        // Create scene
         Scene scene = new Scene(mainLayout, 1400, 900);
 
-        // Load CSS
         try {
             String css = getClass().getResource("/styles/style.css").toExternalForm();
             scene.getStylesheets().add(css);
@@ -86,10 +77,26 @@ public class MainApp extends Application {
             System.out.println("CSS file not found, using default styles");
         }
 
-        // Configure stage
         primaryStage.setTitle("Smart Study System");
         primaryStage.setScene(scene);
         primaryStage.show();
+    }
+
+    private Font getEmojiFont(double size) {
+        String[] emojiFonts = {
+                "Segoe UI Emoji",
+                "Apple Color Emoji",
+                "Noto Color Emoji",
+                "Dialog"
+        };
+
+        for (String fontName : emojiFonts) {
+            Font f = Font.font(fontName, size);
+            if (!f.getFamily().equals("System")) {
+                return f;
+            }
+        }
+        return Font.font(size);
     }
 
     private int getUniqueReviewedCount() {
@@ -111,13 +118,13 @@ public class MainApp extends Application {
                         "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.3), 15, 0, 5, 0);"
         );
 
-        // Logo/Brand
         VBox brandBox = new VBox(5);
         brandBox.setAlignment(Pos.CENTER);
         brandBox.setPadding(new Insets(0, 0, 20, 0));
 
         Label brandIcon = new Label("🎓");
-        brandIcon.setFont(Font.font(40));
+        brandIcon.setFont(getEmojiFont(40));
+        brandIcon.setStyle("-fx-text-fill: white;");
 
         Label brandName = new Label("Smart Study");
         brandName.setFont(Font.font("System", FontWeight.BOLD, 20));
@@ -125,10 +132,8 @@ public class MainApp extends Application {
 
         brandBox.getChildren().addAll(brandIcon, brandName);
 
-        // Storage info card
         VBox storageCard = createStorageCard();
 
-        // Navigation menu
         VBox navMenu = new VBox(6);
         navMenu.setPadding(new Insets(20, 0, 0, 0));
 
@@ -138,19 +143,19 @@ public class MainApp extends Application {
             showDashboard();
         });
 
-        Button topicsBtn = createNavButton("📁  Topics", false);
+        Button topicsBtn = createNavButton("☰ Topics", false);
         topicsBtn.setOnAction(e -> {
             setActiveNavButton(topicsBtn);
             showTopics();
         });
 
-        Button questionsBtn = createNavButton("📄  Questions", false);
+        Button questionsBtn = createNavButton("?  Questions", false);
         questionsBtn.setOnAction(e -> {
             setActiveNavButton(questionsBtn);
             showQuestions();
         });
 
-        Button studyBtn = createNavButton("🎯  Study Session", false);
+        Button studyBtn = createNavButton("➤  Study Session", false);
         studyBtn.setOnAction(e -> {
             setActiveNavButton(studyBtn);
             showStudySession();
@@ -170,14 +175,11 @@ public class MainApp extends Application {
 
         navMenu.getChildren().addAll(homeBtn, topicsBtn, questionsBtn, studyBtn, statsBtn, settingsBtn);
 
-        // Set home button as initially active
         activeNavButton = homeBtn;
 
-        // Bottom spacer
         Region bottomSpacer = new Region();
         VBox.setVgrow(bottomSpacer, Priority.ALWAYS);
 
-        // Version info
         Label versionLabel = new Label("v1.0.0");
         versionLabel.setStyle("-fx-text-fill: rgba(255,255,255,0.4); -fx-font-size: 11px;");
         versionLabel.setAlignment(Pos.CENTER);
@@ -226,10 +228,7 @@ public class MainApp extends Application {
     }
 
     private void refreshSidebar() {
-        // Update the storage card with fresh data
         VBox newStorageCard = createStorageCard();
-
-        // Find and replace the old storage card (it's the second child after brandBox)
         if (sidebar.getChildren().size() > 1) {
             sidebar.getChildren().set(1, newStorageCard);
         }
@@ -260,7 +259,6 @@ public class MainApp extends Application {
             );
         }
 
-        // Hover effects
         btn.setOnMouseEntered(e -> {
             if (!btn.getStyle().contains("font-weight: bold")) {
                 btn.setStyle(baseStyle +
@@ -287,7 +285,6 @@ public class MainApp extends Application {
         dashboard.setPadding(new Insets(40, 50, 40, 50));
         dashboard.setStyle("-fx-background-color: #f8fafc;");
 
-        // Header
         HBox header = new HBox();
         header.setAlignment(Pos.CENTER_LEFT);
 
@@ -307,8 +304,7 @@ public class MainApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // Quick start study button
-        Button quickStudyBtn = new Button("🎯 Start Study Session");
+        Button quickStudyBtn = new Button("✑ Start Study Session");
         quickStudyBtn.setPrefHeight(48);
         quickStudyBtn.setPrefWidth(200);
         quickStudyBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
@@ -323,23 +319,21 @@ public class MainApp extends Application {
 
         header.getChildren().addAll(headerText, spacer, quickStudyBtn);
 
-        // Stats cards
         var stats = studyService.getSessionStats(currentUserId);
         int dueToday = stats.getQuestionsDueToday();
 
         HBox statsRow = new HBox(20);
-        VBox dueCard = createStatCard("⏰", "Due Today", String.valueOf(dueToday),
+        VBox dueCard = createStatCard("\uD83D\uDD5B", "Due Today", String.valueOf(dueToday),
                 dueToday > 0 ? "Start studying!" : "All caught up!", "#3b82f6");
-        VBox successCard = createStatCard("✨", "Success Rate", String.format("%.0f%%", stats.getSuccessRate()),
+        VBox successCard = createStatCard("↝", "Success Rate", String.format("%.0f%%", stats.getSuccessRate()),
                 "Keep improving!", "#10b981");
-        VBox totalCard = createStatCard("🔥", "Total Reviews", String.valueOf(stats.getTotalReviews()),
+        VBox totalCard = createStatCard("📚", "Total Reviews", String.valueOf(stats.getTotalReviews()),
                 "Questions studied", "#f59e0b");
-        VBox streakCard = createStatCard("📅", "Study Streak", calculateStreak() + " days",
+        VBox streakCard = createStatCard("\uD83D\uDDD3", "Study Streak", calculateStreak() + " days",
                 "Daily goal: " + dailyGoalQuestions + " questions", "#8b5cf6");
 
         statsRow.getChildren().addAll(dueCard, successCard, totalCard, streakCard);
 
-        // Topics section
         HBox topicsHeader = new HBox();
         topicsHeader.setAlignment(Pos.CENTER_LEFT);
         Label topicsTitle = new Label("Your Topics");
@@ -361,16 +355,14 @@ public class MainApp extends Application {
 
         topicsHeader.getChildren().addAll(topicsTitle, topicSpacer, viewAllTopics);
 
-        // Topics grid
         FlowPane topicsGrid = new FlowPane(20, 20);
 
         List<Topic> topics = topicDAO.getAll();
         String[] colors = {"#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4"};
-        String[] icons = {"📦", "🔄", "🎯", "🗄️", "💻", "🌐"};
 
         if (topics.isEmpty()) {
             VBox emptyTopics = createEmptyState(
-                    "📁",
+                    "☰",
                     "No topics yet",
                     "Create your first topic to start organizing",
                     "Create Topic",
@@ -385,12 +377,11 @@ public class MainApp extends Application {
                 Topic topic = topics.get(i);
                 int questionCount = questionDAO.getByTopicId(topic.getId()).size();
                 VBox topicCard = createTopicCard(topic.getName(), questionCount + " questions",
-                        icons[i % icons.length], colors[i % colors.length]);
+                        colors[i % colors.length]);
                 topicsGrid.getChildren().add(topicCard);
             }
         }
 
-        // Recent activity
         HBox questionsHeader = new HBox();
         questionsHeader.setAlignment(Pos.CENTER_LEFT);
         Label questionsTitle = new Label("Recent Activity");
@@ -422,7 +413,7 @@ public class MainApp extends Application {
         );
 
         Label iconLabel = new Label(icon);
-        iconLabel.setFont(Font.font(28));
+        iconLabel.setFont(getEmojiFont(28));
         iconLabel.setPrefSize(56, 56);
         iconLabel.setAlignment(Pos.CENTER);
         iconLabel.setStyle(
@@ -444,48 +435,37 @@ public class MainApp extends Application {
 
         card.getChildren().addAll(iconLabel, labelText, valueText, changeText);
 
-        card.setOnMouseEntered(e -> {
-            card.setStyle(
-                    "-fx-background-color: white; " +
-                            "-fx-background-radius: 20; " +
-                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 20, 0, 0, 8); " +
-                            "-fx-cursor: hand;"
-            );
-        });
+        card.setOnMouseEntered(e -> card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 20, 0, 0, 8); " +
+                        "-fx-cursor: hand;"
+        ));
 
-        card.setOnMouseExited(e -> {
-            card.setStyle(
-                    "-fx-background-color: white; " +
-                            "-fx-background-radius: 20; " +
-                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
-            );
-        });
+        card.setOnMouseExited(e -> card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        ));
 
         return card;
     }
 
-    private VBox createTopicCard(String name, String count, String icon, String color) {
+    // ── Topic card for dashboard (no icon) ──────────────────────────────────
+    private VBox createTopicCard(String name, String count, String color) {
         VBox card = new VBox(14);
         card.setPadding(new Insets(24));
         card.setPrefWidth(240);
-        card.setPrefHeight(160);
+        card.setPrefHeight(120);
         card.setStyle(
                 "-fx-background-color: white; " +
                         "-fx-background-radius: 20; " +
                         "-fx-cursor: hand; " +
+                        "-fx-border-color: " + color + "; " +
+                        "-fx-border-width: 0 0 0 4; " +
+                        "-fx-border-radius: 0 0 0 4; " +
                         "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
-
-        StackPane iconContainer = new StackPane();
-        iconContainer.setPrefSize(60, 60);
-        iconContainer.setStyle(
-                "-fx-background-color: linear-gradient(135deg, " + color + " 0%, " + color + "CC 100%); " +
-                        "-fx-background-radius: 16;"
-        );
-
-        Label iconLabel = new Label(icon);
-        iconLabel.setFont(Font.font(30));
-        iconContainer.getChildren().add(iconLabel);
 
         Label nameLabel = new Label(name);
         nameLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
@@ -497,25 +477,27 @@ public class MainApp extends Application {
         countLabel.setFont(Font.font(13));
         countLabel.setStyle("-fx-text-fill: #64748b;");
 
-        card.getChildren().addAll(iconContainer, nameLabel, countLabel);
+        card.getChildren().addAll(nameLabel, countLabel);
 
-        card.setOnMouseEntered(e -> {
-            card.setStyle(
-                    "-fx-background-color: white; " +
-                            "-fx-background-radius: 20; " +
-                            "-fx-cursor: hand; " +
-                            "-fx-effect: dropshadow(gaussian, " + color + "40, 16, 0, 0, 8);"
-            );
-        });
+        card.setOnMouseEntered(e -> card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-border-color: " + color + "; " +
+                        "-fx-border-width: 0 0 0 4; " +
+                        "-fx-border-radius: 0 0 0 4; " +
+                        "-fx-effect: dropshadow(gaussian, " + color + "40, 16, 0, 0, 8);"
+        ));
 
-        card.setOnMouseExited(e -> {
-            card.setStyle(
-                    "-fx-background-color: white; " +
-                            "-fx-background-radius: 20; " +
-                            "-fx-cursor: hand; " +
-                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
-            );
-        });
+        card.setOnMouseExited(e -> card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-border-color: " + color + "; " +
+                        "-fx-border-width: 0 0 0 4; " +
+                        "-fx-border-radius: 0 0 0 4; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        ));
 
         return card;
     }
@@ -556,69 +538,94 @@ public class MainApp extends Application {
 
         VBox rows = new VBox(0);
 
-        List<Question> questions = questionDAO.getAll();
-        for (int i = 0; i < Math.min(questions.size(), 5); i++) {
-            Question q = questions.get(i);
-            Topic topic = topicDAO.getById(q.getTopicId());
+        List<Review> recentReviews = reviewDAO.getByUserId(currentUserId);
 
-            Review latestReview = reviewDAO.getLatestReview(q.getId(), currentUserId);
-            String status = latestReview == null ? "New" :
-                    (latestReview.getNextReviewDate().isBefore(LocalDate.now()) ? "Due" : "Reviewed");
-            String statusColor = latestReview == null ? "#3b82f6" :
-                    (latestReview.getNextReviewDate().isBefore(LocalDate.now()) ? "#f59e0b" : "#10b981");
-
-            HBox row = new HBox();
-            row.setPadding(new Insets(16, 24, 16, 24));
-            row.setSpacing(20);
-            row.setStyle("-fx-border-color: #f1f5f9; -fx-border-width: 1 0 0 0;");
-
-            Label icon = new Label("📝");
-            icon.setFont(Font.font(20));
-            icon.setPrefWidth(40);
-
-            String questionText = q.getQuestionText();
-            if (questionText.length() > 50) {
-                questionText = questionText.substring(0, 50) + "...";
+        if (recentReviews.isEmpty()) {
+            List<Question> questions = questionDAO.getAll();
+            for (int i = 0; i < Math.min(questions.size(), 5); i++) {
+                Question q = questions.get(i);
+                Topic topic = topicDAO.getById(q.getTopicId());
+                HBox row = createDashboardQuestionRow(q, topic, "New", "#3b82f6");
+                rows.getChildren().add(row);
             }
-            Label name = new Label(questionText);
-            name.setPrefWidth(400);
-            name.setFont(Font.font(14));
-            name.setStyle("-fx-text-fill: #0f172a;");
+        } else {
+            Set<Integer> shown = new HashSet<>();
+            int count = 0;
 
-            Label topicName = new Label(topic != null ? topic.getName() : "Unknown");
-            topicName.setPrefWidth(200);
-            topicName.setFont(Font.font(13));
-            topicName.setStyle("-fx-text-fill: #64748b;");
+            for (int i = recentReviews.size() - 1; i >= 0 && count < 5; i--) {
+                Review review = recentReviews.get(i);
 
-            Label statusLabel = new Label(status);
-            statusLabel.setPrefWidth(150);
-            statusLabel.setPadding(new Insets(4, 12, 4, 12));
-            statusLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
-            statusLabel.setStyle(
-                    "-fx-background-color: " + statusColor + "1A; " +
-                            "-fx-text-fill: " + statusColor + "; " +
-                            "-fx-background-radius: 12;"
-            );
+                if (!shown.contains(review.getQuestionId())) {
+                    shown.add(review.getQuestionId());
 
-            row.getChildren().addAll(icon, name, topicName, statusLabel);
+                    Question q = questionDAO.getById(review.getQuestionId());
+                    if (q == null) continue;
 
-            row.setOnMouseEntered(e -> row.setStyle(
-                    "-fx-background-color: #f8fafc; " +
-                            "-fx-border-color: #f1f5f9; " +
-                            "-fx-border-width: 1 0 0 0;"
-            ));
-            row.setOnMouseExited(e -> row.setStyle(
-                    "-fx-background-color: transparent; " +
-                            "-fx-border-color: #f1f5f9; " +
-                            "-fx-border-width: 1 0 0 0;"
-            ));
+                    Topic topic = topicDAO.getById(q.getTopicId());
 
-            rows.getChildren().add(row);
+                    String status = review.getNextReviewDate().isBefore(LocalDate.now()) ? "Due" : "Reviewed";
+                    String statusColor = review.getNextReviewDate().isBefore(LocalDate.now()) ? "#f59e0b" : "#10b981";
+
+                    HBox row = createDashboardQuestionRow(q, topic, status, statusColor);
+                    rows.getChildren().add(row);
+                    count++;
+                }
+            }
         }
 
         table.getChildren().addAll(header, rows);
 
         return table;
+    }
+
+    private HBox createDashboardQuestionRow(Question q, Topic topic, String status, String statusColor) {
+        HBox row = new HBox();
+        row.setPadding(new Insets(16, 24, 16, 24));
+        row.setSpacing(20);
+        row.setStyle("-fx-border-color: #f1f5f9; -fx-border-width: 1 0 0 0;");
+
+        Label icon = new Label("📝");
+        icon.setFont(getEmojiFont(20));
+        icon.setPrefWidth(40);
+
+        String questionText = q.getQuestionText();
+        if (questionText.length() > 50) {
+            questionText = questionText.substring(0, 50) + "...";
+        }
+        Label name = new Label(questionText);
+        name.setPrefWidth(400);
+        name.setFont(Font.font(14));
+        name.setStyle("-fx-text-fill: #0f172a;");
+
+        Label topicName = new Label(topic != null ? topic.getName() : "Unknown");
+        topicName.setPrefWidth(200);
+        topicName.setFont(Font.font(13));
+        topicName.setStyle("-fx-text-fill: #64748b;");
+
+        Label statusLabel = new Label(status);
+        statusLabel.setPrefWidth(150);
+        statusLabel.setPadding(new Insets(4, 12, 4, 12));
+        statusLabel.setFont(Font.font("System", FontWeight.BOLD, 11));
+        statusLabel.setStyle(
+                "-fx-background-color: " + statusColor + "1A; " +
+                        "-fx-text-fill: " + statusColor + "; " +
+                        "-fx-background-radius: 12;"
+        );
+
+        row.getChildren().addAll(icon, name, topicName, statusLabel);
+
+        row.setOnMouseEntered(e -> row.setStyle(
+                "-fx-background-color: #f8fafc; " +
+                        "-fx-border-color: #f1f5f9; " +
+                        "-fx-border-width: 1 0 0 0;"
+        ));
+        row.setOnMouseExited(e -> row.setStyle(
+                "-fx-background-color: transparent; " +
+                        "-fx-border-color: #f1f5f9; " +
+                        "-fx-border-width: 1 0 0 0;"
+        ));
+
+        return row;
     }
 
     private void showTopics() {
@@ -637,7 +644,7 @@ public class MainApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button addTopicBtn = new Button("＋ Add Topic");
+        Button addTopicBtn = new Button("+ Add Topic");
         addTopicBtn.setPrefHeight(44);
         addTopicBtn.setPrefWidth(140);
         addTopicBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
@@ -656,7 +663,6 @@ public class MainApp extends Application {
 
         List<Topic> topics = topicDAO.getAll();
         String[] colors = {"#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981", "#06b6d4", "#f97316", "#ef4444"};
-        String[] icons = {"📦", "🔄", "🎯", "🗄️", "💻", "🌐", "📚", "🧠"};
 
         if (topics.isEmpty()) {
             VBox emptyState = createEmptyState(
@@ -674,7 +680,6 @@ public class MainApp extends Application {
                 VBox topicCard = createManageableTopicCard(
                         topic,
                         questionCount,
-                        icons[i % icons.length],
                         colors[i % colors.length]
                 );
                 topicsGrid.getChildren().add(topicCard);
@@ -703,7 +708,7 @@ public class MainApp extends Application {
         );
 
         Label iconLabel = new Label(icon);
-        iconLabel.setFont(Font.font(64));
+        iconLabel.setFont(getEmojiFont(64));
 
         Label titleLabel = new Label(title);
         titleLabel.setFont(Font.font("System", FontWeight.BOLD, 24));
@@ -734,28 +739,21 @@ public class MainApp extends Application {
         return emptyState;
     }
 
-    private VBox createManageableTopicCard(Topic topic, int questionCount, String icon, String color) {
+    // ── Manageable topic card (Topics screen, no icon) ───────────────────────
+    private VBox createManageableTopicCard(Topic topic, int questionCount, String color) {
         VBox card = new VBox(16);
         card.setPadding(new Insets(28));
         card.setPrefWidth(280);
-        card.setPrefHeight(220);
+        card.setPrefHeight(160);
         card.setStyle(
                 "-fx-background-color: white; " +
                         "-fx-background-radius: 20; " +
                         "-fx-cursor: hand; " +
+                        "-fx-border-color: " + color + "; " +
+                        "-fx-border-width: 0 0 0 4; " +
+                        "-fx-border-radius: 0 0 0 4; " +
                         "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
-
-        StackPane iconContainer = new StackPane();
-        iconContainer.setPrefSize(64, 64);
-        iconContainer.setStyle(
-                "-fx-background-color: linear-gradient(135deg, " + color + " 0%, " + color + "CC 100%); " +
-                        "-fx-background-radius: 18;"
-        );
-
-        Label iconLabel = new Label(icon);
-        iconLabel.setFont(Font.font(32));
-        iconContainer.getChildren().add(iconLabel);
 
         Label nameLabel = new Label(topic.getName());
         nameLabel.setFont(Font.font("System", FontWeight.BOLD, 17));
@@ -818,27 +816,27 @@ public class MainApp extends Application {
 
         actions.getChildren().addAll(editBtn, deleteBtn);
 
-        card.getChildren().addAll(iconContainer, nameLabel, countBox, spacer, actions);
+        card.getChildren().addAll(nameLabel, countBox, spacer, actions);
 
-        card.setOnMouseEntered(e -> {
-            if (e.getTarget() == card || !e.getTarget().toString().contains("Button")) {
-                card.setStyle(
-                        "-fx-background-color: white; " +
-                                "-fx-background-radius: 20; " +
-                                "-fx-cursor: hand; " +
-                                "-fx-effect: dropshadow(gaussian, " + color + "30, 20, 0, 0, 8);"
-                );
-            }
-        });
+        card.setOnMouseEntered(e -> card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-border-color: " + color + "; " +
+                        "-fx-border-width: 0 0 0 4; " +
+                        "-fx-border-radius: 0 0 0 4; " +
+                        "-fx-effect: dropshadow(gaussian, " + color + "30, 20, 0, 0, 8);"
+        ));
 
-        card.setOnMouseExited(e -> {
-            card.setStyle(
-                    "-fx-background-color: white; " +
-                            "-fx-background-radius: 20; " +
-                            "-fx-cursor: hand; " +
-                            "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
-            );
-        });
+        card.setOnMouseExited(e -> card.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-border-color: " + color + "; " +
+                        "-fx-border-width: 0 0 0 4; " +
+                        "-fx-border-radius: 0 0 0 4; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        ));
 
         return card;
     }
@@ -1109,7 +1107,7 @@ public class MainApp extends Application {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        Button addQuestionBtn = new Button("＋ Add Question");
+        Button addQuestionBtn = new Button("+ Add Question");
         addQuestionBtn.setPrefHeight(44);
         addQuestionBtn.setPrefWidth(150);
         addQuestionBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
@@ -1443,10 +1441,9 @@ public class MainApp extends Application {
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
-
         cancelBtn.setOnAction(e -> {
             dialog.close();
-            showQuestions();  // refresh list when user manually closes
+            showQuestions();
         });
 
         Button saveBtn = new Button("Save Question");
@@ -1471,7 +1468,7 @@ public class MainApp extends Application {
             String difficulty = difficultyCombo.getValue();
 
             if (questionText.isEmpty() || answer.isEmpty()) {
-                successMsg.setText(""); // clear success if they retry
+                successMsg.setText("");
                 showAlert(Alert.AlertType.ERROR, "Validation Error", "Missing Information",
                         "Please fill in both question and answer fields.");
                 return;
@@ -1640,7 +1637,7 @@ public class MainApp extends Application {
         saveBtn.setPrefHeight(44);
         saveBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
         saveBtn.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%); " +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
@@ -1766,7 +1763,7 @@ public class MainApp extends Application {
         content.setPadding(new Insets(100));
         content.setStyle("-fx-background-color: #f8fafc;");
 
-        Label icon = new Label("🎉");
+        Label icon = new Label("✓");
         icon.setFont(Font.font(80));
 
         Label title = new Label("All Caught Up!");
@@ -1783,7 +1780,7 @@ public class MainApp extends Application {
         statsInfo.setFont(Font.font(14));
         statsInfo.setStyle("-fx-text-fill: #10b981;");
 
-        Button backBtn = new Button("⬅️ Back to Dashboard");
+        Button backBtn = new Button("← Back to Dashboard");
         backBtn.setPrefHeight(44);
         backBtn.setPrefWidth(200);
         backBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
@@ -1810,9 +1807,6 @@ public class MainApp extends Application {
         questionScreen.setPadding(new Insets(50));
         questionScreen.setAlignment(Pos.TOP_CENTER);
         questionScreen.setStyle("-fx-background-color: #f8fafc;");
-
-        HBox progressBar = new HBox(10);
-        progressBar.setAlignment(Pos.CENTER);
 
         ProgressBar progressIndicator = new ProgressBar();
         progressIndicator.setProgress((double) (currentQuestionIndex + 1) / currentStudyQuestions.size());
@@ -1889,7 +1883,7 @@ public class MainApp extends Application {
         HBox buttonBox = new HBox(15);
         buttonBox.setAlignment(Pos.CENTER);
 
-        Button showAnswerBtn = new Button("👁️ Show Answer");
+        Button showAnswerBtn = new Button("Show Answer");
         showAnswerBtn.setPrefWidth(220);
         showAnswerBtn.setPrefHeight(50);
         showAnswerBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
@@ -1940,13 +1934,8 @@ public class MainApp extends Application {
             wrongBtn.setManaged(true);
         });
 
-        correctBtn.setOnAction(e -> {
-            handleAnswer(currentQuestion, true);
-        });
-
-        wrongBtn.setOnAction(e -> {
-            handleAnswer(currentQuestion, false);
-        });
+        correctBtn.setOnAction(e -> handleAnswer(currentQuestion, true));
+        wrongBtn.setOnAction(e -> handleAnswer(currentQuestion, false));
 
         buttonBox.getChildren().addAll(showAnswerBtn, correctBtn, wrongBtn);
 
@@ -1991,13 +1980,13 @@ public class MainApp extends Application {
     }
 
     private void showAnswerFeedback(boolean wasCorrect) {
-        VBox feedback = new VBox(30);
+        VBox feedback = new VBox(20);
         feedback.setAlignment(Pos.CENTER);
-        feedback.setPadding(new Insets(120));
         feedback.setStyle("-fx-background-color: #f8fafc;");
 
-        Label icon = new Label(wasCorrect ? "🎉" : "💪");
-        icon.setFont(Font.font(120));
+        Label icon = new Label(wasCorrect ? "✓" : "✗");
+        icon.setFont(Font.font(100));
+        icon.setStyle("-fx-text-fill: " + (wasCorrect ? "#10b981" : "#ef4444") + ";");
 
         Label message = new Label(wasCorrect ? "Great Job!" : "Keep Practicing!");
         message.setFont(Font.font("System", FontWeight.BOLD, 42));
@@ -2005,14 +1994,21 @@ public class MainApp extends Application {
 
         Label detail = new Label(wasCorrect ?
                 "You'll see this question again in a few days!" :
-                "You'll see this question again tomorrow!");
+                "Don't worry — SM-2 will bring this back tomorrow!");
         detail.setFont(Font.font(18));
         detail.setStyle("-fx-text-fill: #64748b;");
 
         feedback.getChildren().addAll(icon, message, detail);
 
+        StackPane wrapper = new StackPane(feedback);
+        wrapper.setAlignment(Pos.CENTER);
+        wrapper.setPadding(new Insets(0, 0, 80, 0));
+        wrapper.setStyle("-fx-background-color: #f8fafc;");
+        wrapper.prefWidthProperty().bind(contentArea.widthProperty());
+        wrapper.prefHeightProperty().bind(contentArea.heightProperty());
+
         contentArea.getChildren().clear();
-        contentArea.getChildren().add(feedback);
+        contentArea.getChildren().add(wrapper);
     }
 
     private void nextQuestion() {
@@ -2026,19 +2022,19 @@ public class MainApp extends Application {
     }
 
     private void showSessionComplete() {
-        VBox complete = new VBox(30);
+        VBox complete = new VBox(25);
         complete.setAlignment(Pos.CENTER);
-        complete.setPadding(new Insets(120));
         complete.setStyle("-fx-background-color: #f8fafc;");
 
-        Label icon = new Label("🎊");
-        icon.setFont(Font.font(100));
+        Label icon = new Label("★");
+        icon.setFont(Font.font(80));
+        icon.setStyle("-fx-text-fill: #f59e0b;");
 
         Label title = new Label("Session Complete!");
         title.setFont(Font.font("System", FontWeight.BOLD, 42));
         title.setStyle("-fx-text-fill: #0f172a;");
 
-        Label message = new Label("You reviewed " + currentStudyQuestions.size() + " questions today!");
+        Label message = new Label("You reviewed " + answeredThisSession.size() + " questions today!");
         message.setFont(Font.font(18));
         message.setStyle("-fx-text-fill: #64748b;");
 
@@ -2047,35 +2043,44 @@ public class MainApp extends Application {
         statsText.setFont(Font.font("System", FontWeight.BOLD, 24));
         statsText.setStyle("-fx-text-fill: #10b981;");
 
-        Button dashboardBtn = new Button("🏠 Back to Dashboard");
+        complete.getChildren().addAll(icon, title, message, statsText);
+
+        int todayReviews = getTodayReviewCount();
+        if (todayReviews >= dailyGoalQuestions) {
+            Label goalReached = new Label("★ Daily Goal Reached!");
+            goalReached.setFont(Font.font("System", FontWeight.BOLD, 18));
+            goalReached.setStyle("-fx-text-fill: #f59e0b;");
+            complete.getChildren().add(goalReached);
+        }
+
+        Button dashboardBtn = new Button("⌂ Back to Dashboard");
         dashboardBtn.setPrefWidth(250);
         dashboardBtn.setPrefHeight(54);
         dashboardBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
         dashboardBtn.setStyle(
-                "-fx-background-color: #34aeeb;" +
+                "-fx-background-color: #34aeeb; " +
                         "-fx-text-fill: white; " +
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand; " +
                         "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
         );
         dashboardBtn.setOnAction(e -> {
+            sessionNeedsReload = true;
             refreshSidebar();
             showDashboard();
         });
 
-        complete.getChildren().addAll(icon, title, message, statsText);
-
-        int todayReviews = getTodayReviewCount();
-        if (todayReviews >= dailyGoalQuestions) {
-            Label goalReached = new Label("🎯 Daily Goal Reached!");
-            goalReached.setFont(Font.font("System", FontWeight.BOLD, 18));
-            goalReached.setStyle("-fx-text-fill: #f59e0b;");
-            complete.getChildren().add(goalReached);
-        }
-
         complete.getChildren().add(dashboardBtn);
+
+        StackPane wrapper = new StackPane(complete);
+        wrapper.setAlignment(Pos.CENTER);
+        wrapper.setPadding(new Insets(0, 0, 80, 0));
+        wrapper.setStyle("-fx-background-color: #f8fafc;");
+        wrapper.prefWidthProperty().bind(contentArea.widthProperty());
+        wrapper.prefHeightProperty().bind(contentArea.heightProperty());
+
         contentArea.getChildren().clear();
-        contentArea.getChildren().add(complete);
+        contentArea.getChildren().add(wrapper);
     }
 
     private int getTodayReviewCount() {
@@ -2106,37 +2111,14 @@ public class MainApp extends Application {
 
         HBox overallStats = new HBox(20);
 
-        VBox totalCard = createStatCard(
-                "📚",
-                "Total Reviews",
-                String.valueOf(stats.getTotalReviews()),
-                "questions studied",
-                "#3b82f6"
-        );
-
-        VBox successCard = createStatCard(
-                "✅",
-                "Success Rate",
-                String.format("%.1f%%", stats.getSuccessRate()),
-                stats.getCorrectAnswers() + " correct answers",
-                "#10b981"
-        );
-
-        VBox dueCard = createStatCard(
-                "⏰",
-                "Due Today",
-                String.valueOf(stats.getQuestionsDueToday()),
-                "questions need review",
-                "#f59e0b"
-        );
-
-        VBox streakCard = createStatCard(
-                "🔥",
-                "Study Streak",
-                calculateStreak() + " days",
-                "Keep it up!",
-                "#ef4444"
-        );
+        VBox totalCard = createStatCard("📚", "Total Reviews", String.valueOf(stats.getTotalReviews()),
+                "questions studied", "#3b82f6");
+        VBox successCard = createStatCard("↝", "Success Rate", String.format("%.1f%%", stats.getSuccessRate()),
+                stats.getCorrectAnswers() + " correct answers", "#10b981");
+        VBox dueCard = createStatCard("\uD83D\uDD5B", "Due Today", String.valueOf(stats.getQuestionsDueToday()),
+                "questions need review", "#f59e0b");
+        VBox streakCard = createStatCard("\uD83D\uDDD3", "Study Streak", calculateStreak() + " days",
+                "Keep it up!", "#ef4444");
 
         overallStats.getChildren().addAll(totalCard, successCard, dueCard, streakCard);
 
@@ -2197,14 +2179,7 @@ public class MainApp extends Application {
             }
         }
 
-        statsScreen.getChildren().addAll(
-                title,
-                overallStats,
-                topicTitle,
-                topicPerformance,
-                activityTitle,
-                activityBox
-        );
+        statsScreen.getChildren().addAll(title, overallStats, topicTitle, topicPerformance, activityTitle, activityBox);
 
         ScrollPane scrollPane = new ScrollPane(statsScreen);
         scrollPane.setFitToWidth(true);
@@ -2256,7 +2231,7 @@ public class MainApp extends Application {
         stats.setStyle("-fx-text-fill: #64748b;");
 
         if (isWeak) {
-            Label weakBadge = new Label("⚠️ Needs Practice");
+            Label weakBadge = new Label("! Needs Practice");
             weakBadge.setPadding(new Insets(4, 10, 4, 10));
             weakBadge.setFont(Font.font("System", FontWeight.BOLD, 11));
             weakBadge.setStyle(
@@ -2338,7 +2313,7 @@ public class MainApp extends Application {
         Set<LocalDate> reviewDays = new HashSet<>();
         for (Review review : reviews) {
             LocalDate reviewDate = review.getReviewedAt().toLocalDate();
-            if (reviewDate.isAfter(today.minusDays(30))) {
+            if (reviewDate.isAfter(today.minusDays(365))) {
                 reviewDays.add(reviewDate);
             }
         }
@@ -2361,7 +2336,6 @@ public class MainApp extends Application {
         title.setFont(Font.font("System", FontWeight.BOLD, 32));
         title.setStyle("-fx-text-fill: #0f172a;");
 
-        // User Profile Section
         VBox profileSection = new VBox(20);
         profileSection.setPadding(new Insets(30));
         profileSection.setStyle(
@@ -2370,7 +2344,7 @@ public class MainApp extends Application {
                         "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
         );
 
-        Label profileTitle = new Label("👤 User Profile");
+        Label profileTitle = new Label("User Profile");
         profileTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
         profileTitle.setStyle("-fx-text-fill: #0f172a;");
 
@@ -2379,14 +2353,23 @@ public class MainApp extends Application {
         HBox userInfo = new HBox(20);
         userInfo.setAlignment(Pos.CENTER_LEFT);
 
+        // Change VBox to StackPane for better layering
         StackPane avatarContainer = new StackPane();
         avatarContainer.setPrefSize(80, 80);
+        avatarContainer.setMinSize(80, 80);
+        avatarContainer.setMaxSize(80, 80);
+
+        // Use a more modern CSS approach
         avatarContainer.setStyle(
-                "-fx-background-color: linear-gradient(135deg, #667eea 0%, #764ba2 100%); " +
-                        "-fx-background-radius: 40;"
+                "-fx-background-color: linear-gradient(to bottom right, #57C785, #EDDD53);" +
+                        "-fx-background-radius: 40;" +
+                        "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 0);"
         );
-        Label userAvatar = new Label("👤");
-        userAvatar.setFont(Font.font(40));
+
+        Label userAvatar = new Label("S");
+        userAvatar.setFont(Font.font("System", FontWeight.BOLD, 32));
+        userAvatar.setStyle("-fx-text-fill: white;");
+
         avatarContainer.getChildren().add(userAvatar);
 
         VBox userDetails = new VBox(6);
@@ -2399,12 +2382,9 @@ public class MainApp extends Application {
         userEmail.setStyle("-fx-text-fill: #64748b;");
 
         userDetails.getChildren().addAll(userName, userEmail);
-
         userInfo.getChildren().addAll(avatarContainer, userDetails);
-
         profileSection.getChildren().addAll(profileTitle, userInfo);
 
-        // Progress Section
         VBox statsSection = new VBox(20);
         statsSection.setPadding(new Insets(30));
         statsSection.setStyle(
@@ -2423,7 +2403,6 @@ public class MainApp extends Application {
         int todayReviews = getTodayReviewCount();
 
         VBox statsGrid = new VBox(12);
-
         statsGrid.getChildren().addAll(
                 createSettingRow("Total Questions in Library", String.valueOf(totalQuestions)),
                 createSettingRow("Total Topics", String.valueOf(totalTopics)),
@@ -2436,7 +2415,6 @@ public class MainApp extends Application {
 
         statsSection.getChildren().addAll(statsTitle, statsGrid);
 
-        // Preferences Section
         VBox prefsSection = new VBox(20);
         prefsSection.setPadding(new Insets(30));
         prefsSection.setStyle(
@@ -2449,7 +2427,6 @@ public class MainApp extends Application {
         prefsTitle.setFont(Font.font("System", FontWeight.BOLD, 20));
         prefsTitle.setStyle("-fx-text-fill: #0f172a;");
 
-        // Daily goal
         HBox dailyGoalRow = new HBox(15);
         dailyGoalRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -2473,7 +2450,7 @@ public class MainApp extends Application {
 
         dailyGoalCombo.setOnAction(e -> {
             dailyGoalQuestions = dailyGoalCombo.getValue();
-            sessionNeedsReload = true; // ← add this line
+            sessionNeedsReload = true;
             showAlert(Alert.AlertType.INFORMATION, "Settings Updated", "Daily Goal Updated",
                     "Your daily goal has been set to " + dailyGoalQuestions + " questions.");
         });
@@ -2484,7 +2461,6 @@ public class MainApp extends Application {
 
         dailyGoalRow.getChildren().addAll(dailyGoalLabel, dailyGoalCombo, questionsLabel);
 
-        // Progress indicator for today's goal
         HBox goalProgress = new HBox(15);
         goalProgress.setAlignment(Pos.CENTER_LEFT);
 
@@ -2509,7 +2485,6 @@ public class MainApp extends Application {
 
         goalProgress.getChildren().addAll(goalProgressLabel, todayProgress, goalText);
 
-        // Notifications
         HBox notifRow = new HBox(15);
         notifRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -2523,15 +2498,14 @@ public class MainApp extends Application {
         notifCheckbox.setFont(Font.font(14));
         notifCheckbox.setOnAction(e -> {
             dailyRemindersEnabled = notifCheckbox.isSelected();
-            showAlert(Alert.AlertType.INFORMATION, "Settings Updated", "Reminders " + (dailyRemindersEnabled ? "Enabled" : "Disabled"),
+            showAlert(Alert.AlertType.INFORMATION, "Settings Updated",
+                    "Reminders " + (dailyRemindersEnabled ? "Enabled" : "Disabled"),
                     "Daily reminders have been " + (dailyRemindersEnabled ? "enabled" : "disabled") + ".");
         });
 
         notifRow.getChildren().addAll(notifLabel, notifCheckbox);
-
         prefsSection.getChildren().addAll(prefsTitle, dailyGoalRow, goalProgress, notifRow);
 
-        // About Section
         VBox aboutSection = new VBox(20);
         aboutSection.setPadding(new Insets(30));
         aboutSection.setStyle(
@@ -2556,10 +2530,9 @@ public class MainApp extends Application {
 
         aboutSection.getChildren().addAll(aboutTitle, aboutInfo);
 
-        // Action buttons
         HBox actionButtons = new HBox(15);
 
-        Button resetBtn = new Button("🔄 Reset All Progress");
+        Button resetBtn = new Button("↻ Reset All Progress");
         resetBtn.setPrefHeight(44);
         resetBtn.setPrefWidth(200);
         resetBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
@@ -2573,7 +2546,7 @@ public class MainApp extends Application {
         );
         resetBtn.setOnAction(e -> showResetConfirmation());
 
-        Button exportBtn = new Button("📥 Export Data");
+        Button exportBtn = new Button("↓ Export Data");
         exportBtn.setPrefHeight(44);
         exportBtn.setPrefWidth(180);
         exportBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
@@ -2585,21 +2558,12 @@ public class MainApp extends Application {
                         "-fx-background-radius: 12; " +
                         "-fx-cursor: hand;"
         );
-        exportBtn.setOnAction(e -> {
-            showAlert(Alert.AlertType.INFORMATION, "Export Data", "Feature Coming Soon!",
-                    "Data export functionality will be available in a future update.");
-        });
+        exportBtn.setOnAction(e -> showAlert(Alert.AlertType.INFORMATION, "Export Data", "Feature Coming Soon!",
+                "Data export functionality will be available in a future update."));
 
         actionButtons.getChildren().addAll(resetBtn, exportBtn);
 
-        settingsScreen.getChildren().addAll(
-                title,
-                profileSection,
-                statsSection,
-                prefsSection,
-                aboutSection,
-                actionButtons
-        );
+        settingsScreen.getChildren().addAll(title, profileSection, statsSection, prefsSection, aboutSection, actionButtons);
 
         ScrollPane scrollPane = new ScrollPane(settingsScreen);
         scrollPane.setFitToWidth(true);
@@ -2635,7 +2599,7 @@ public class MainApp extends Application {
     private void showResetConfirmation() {
         Alert confirmation = new Alert(Alert.AlertType.WARNING);
         confirmation.setTitle("Reset Progress");
-        confirmation.setHeaderText("⚠️ Warning: This Cannot Be Undone!");
+        confirmation.setHeaderText("! Warning: This Cannot Be Undone!");
         confirmation.setContentText(
                 "This will delete ALL your review history and progress.\n" +
                         "Your questions and topics will remain.\n\n" +
@@ -2660,6 +2624,7 @@ public class MainApp extends Application {
                 showAlert(Alert.AlertType.INFORMATION, "Reset Complete", "Progress Reset!",
                         "Deleted " + deletedCount + " review records. Your learning journey starts fresh!");
 
+                sessionNeedsReload = true;
                 refreshSidebar();
                 showSettings();
             }
