@@ -47,6 +47,7 @@ public class MainApp extends Application {
     private int dailyGoalQuestions = 10;
     private boolean dailyRemindersEnabled = true;
     private boolean sessionNeedsReload = true;
+    private Set<Integer> selectedTopicIds = new HashSet<>(); // empty = all topics
 
     @Override
     public void start(Stage primaryStage) {
@@ -1682,6 +1683,61 @@ public class MainApp extends Application {
         dialog.show();
     }
 
+    private void updateSessionStats(HBox statsPreview) {
+        statsPreview.getChildren().clear();
+
+        List<Question> allQuestions;
+        if (selectedTopicIds.isEmpty()) {
+            allQuestions = questionDAO.getAll();
+        } else {
+            allQuestions = new ArrayList<>();
+            for (int topicId : selectedTopicIds) {
+                allQuestions.addAll(questionDAO.getByTopicId(topicId));
+            }
+        }
+
+        int totalCount = allQuestions.size();
+
+        int dueCount = (int) allQuestions.stream().filter(q -> {
+            Review r = reviewDAO.getLatestReview(q.getId(), currentUserId);
+            return r != null && !r.getNextReviewDate().isAfter(LocalDate.now());
+        }).count();
+
+        int newCount = (int) allQuestions.stream().filter(q ->
+                reviewDAO.getLatestReview(q.getId(), currentUserId) == null
+        ).count();
+
+        int sessionSize = Math.min(dailyGoalQuestions, Math.min(totalCount, dueCount + newCount));
+
+        statsPreview.getChildren().addAll(
+                createStatPill("Due", String.valueOf(dueCount), "#f59e0b"),
+                createStatPill("New", String.valueOf(newCount), "#3b82f6"),
+                createStatPill("Total", String.valueOf(totalCount), "#64748b"),
+                createStatPill("Session", String.valueOf(sessionSize), "#10b981")
+        );
+    }
+
+    private HBox createStatPill(String label, String value, String color) {
+        HBox pill = new HBox(8);
+        pill.setAlignment(Pos.CENTER_LEFT);
+        pill.setPadding(new Insets(10, 16, 10, 16));
+        pill.setStyle(
+                "-fx-background-color: " + color + "1A; " +
+                        "-fx-background-radius: 12;"
+        );
+
+        Label valueLabel = new Label(value);
+        valueLabel.setFont(Font.font("System", FontWeight.BOLD, 18));
+        valueLabel.setStyle("-fx-text-fill: " + color + ";");
+
+        Label textLabel = new Label(label);
+        textLabel.setFont(Font.font(13));
+        textLabel.setStyle("-fx-text-fill: #64748b;");
+
+        pill.getChildren().addAll(valueLabel, textLabel);
+        return pill;
+    }
+
     private void deleteQuestion(Question question) {
         Alert confirmation = new Alert(Alert.AlertType.CONFIRMATION);
         confirmation.setTitle("Delete Question");
@@ -1704,46 +1760,206 @@ public class MainApp extends Application {
         });
     }
 
-    private void showStudySession() {
-        if (currentStudyQuestions == null
-                || currentQuestionIndex >= currentStudyQuestions.size()
-                || sessionNeedsReload) {
-            answeredThisSession.clear();
-            sessionNeedsReload = false;
-            loadStudyQuestions();
+    private HBox[] buildTopicStats(int topicId, List<Topic> topics) {
+        int dueCount;
+        int totalCount;
+        int newCount;
+
+        if (topicId == -1) {
+            dueCount = studyService.getDueQuestions(currentUserId).size();
+            totalCount = questionDAO.getCount();
+            List<Integer> dueIds = studyService.getDueQuestions(currentUserId)
+                    .stream().map(Question::getId).collect(java.util.stream.Collectors.toList());
+            newCount = (int) questionDAO.getAll().stream()
+                    .filter(q -> reviewDAO.getLatestReview(q.getId(), currentUserId) == null)
+                    .count();
         } else {
-            showQuestionCard();
+            List<Question> topicQuestions = questionDAO.getByTopicId(topicId);
+            totalCount = topicQuestions.size();
+            dueCount = (int) topicQuestions.stream()
+                    .filter(q -> {
+                        Review r = reviewDAO.getLatestReview(q.getId(), currentUserId);
+                        return r != null && !r.getNextReviewDate().isAfter(LocalDate.now());
+                    }).count();
+            newCount = (int) topicQuestions.stream()
+                    .filter(q -> reviewDAO.getLatestReview(q.getId(), currentUserId) == null)
+                    .count();
+        }
+
+        HBox dueBox = createStatPill("Due", String.valueOf(dueCount), "#f59e0b");
+        HBox newBox = createStatPill("New", String.valueOf(newCount), "#3b82f6");
+        HBox totalBox = createStatPill("Total", String.valueOf(totalCount), "#64748b");
+
+        return new HBox[]{dueBox, newBox, totalBox};
+    }
+
+
+    private void showStudySession() {
+        VBox sessionScreen = new VBox(30);
+        sessionScreen.setPadding(new Insets(40, 50, 40, 50));
+        sessionScreen.setAlignment(Pos.TOP_CENTER);
+        sessionScreen.setStyle("-fx-background-color: #f8fafc;");
+
+        Label title = new Label("Study Session");
+        title.setFont(Font.font("System", FontWeight.BOLD, 32));
+        title.setStyle("-fx-text-fill: #0f172a;");
+        title.setMaxWidth(Double.MAX_VALUE);
+
+        VBox selectorCard = new VBox(20);
+        selectorCard.setPadding(new Insets(30));
+        selectorCard.setMaxWidth(750);
+        selectorCard.setStyle(
+                "-fx-background-color: white; " +
+                        "-fx-background-radius: 20; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.06), 12, 0, 0, 4);"
+        );
+
+        Label selectorLabel = new Label("Select Topics");
+        selectorLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+        selectorLabel.setStyle("-fx-text-fill: #0f172a;");
+
+        Label selectorHint = new Label("Click topics to select. Leave all unselected to study everything.");
+        selectorHint.setFont(Font.font(13));
+        selectorHint.setStyle("-fx-text-fill: #94a3b8;");
+
+        // Stats preview — declared BEFORE chips so lambdas can reference it
+        HBox statsPreview = new HBox(16);
+        statsPreview.setAlignment(Pos.CENTER_LEFT);
+        updateSessionStats(statsPreview);
+
+        // Topic chips
+        FlowPane chipsPane = new FlowPane(10, 10);
+        chipsPane.setPrefWrapLength(700);
+
+        List<Topic> topics = topicDAO.getAll();
+
+        for (Topic t : topics) {
+            boolean isSelected = selectedTopicIds.contains(t.getId());
+
+            Button chip = new Button(t.getName());
+            chip.setFont(Font.font("System", FontWeight.BOLD, 13));
+            chip.setPadding(new Insets(8, 16, 8, 16));
+            chip.setCursor(javafx.scene.Cursor.HAND);
+            styleChip(chip, isSelected);
+
+            chip.setOnAction(e -> {
+                if (selectedTopicIds.contains(t.getId())) {
+                    selectedTopicIds.remove(t.getId());
+                    styleChip(chip, false);
+                } else {
+                    selectedTopicIds.add(t.getId());
+                    styleChip(chip, true);
+                }
+                sessionNeedsReload = true;
+                // update stats
+                updateSessionStats(statsPreview);
+            });
+
+            chipsPane.getChildren().add(chip);
+        }
+
+        Button startBtn = new Button("➤  Start Session");
+        startBtn.setPrefHeight(50);
+        startBtn.setPrefWidth(220);
+        startBtn.setFont(Font.font("System", FontWeight.BOLD, 16));
+        startBtn.setStyle(
+                "-fx-background-color: #34aeeb; " +
+                        "-fx-text-fill: white; " +
+                        "-fx-background-radius: 12; " +
+                        "-fx-cursor: hand; " +
+                        "-fx-effect: dropshadow(gaussian, rgba(59, 130, 246, 0.4), 12, 0, 0, 4);"
+        );
+        startBtn.setOnAction(e -> {
+            answeredThisSession.clear();
+            sessionNeedsReload = true;
+            loadStudyQuestions();
+        });
+
+        selectorCard.getChildren().addAll(selectorLabel, selectorHint, chipsPane, statsPreview, startBtn);
+        sessionScreen.getChildren().addAll(title, selectorCard);
+
+        ScrollPane scrollPane = new ScrollPane(sessionScreen);
+        scrollPane.setFitToWidth(true);
+        scrollPane.setStyle("-fx-background: #f8fafc; -fx-background-color: #f8fafc;");
+
+        contentArea.getChildren().clear();
+        contentArea.getChildren().add(scrollPane);
+    }
+
+    private void styleChip(Button chip, boolean selected) {
+        if (selected) {
+            chip.setStyle(
+                    "-fx-background-color: #34aeeb; " +
+                            "-fx-text-fill: white; " +
+                            "-fx-background-radius: 20; " +
+                            "-fx-border-color: #34aeeb; " +
+                            "-fx-border-width: 2; " +
+                            "-fx-border-radius: 20; " +
+                            "-fx-cursor: hand;"
+            );
+        } else {
+            chip.setStyle(
+                    "-fx-background-color: white; " +
+                            "-fx-text-fill: #64748b; " +
+                            "-fx-background-radius: 20; " +
+                            "-fx-border-color: #e2e8f0; " +
+                            "-fx-border-width: 2; " +
+                            "-fx-border-radius: 20; " +
+                            "-fx-cursor: hand;"
+            );
         }
     }
 
     private void loadStudyQuestions() {
+        // Step 1 — get due questions filtered by selected topics
         List<Question> dueQuestions = new ArrayList<>(studyService.getDueQuestions(currentUserId));
+
+        if (!selectedTopicIds.isEmpty()) {
+            dueQuestions.removeIf(q -> !selectedTopicIds.contains(q.getTopicId()));
+        }
+
         dueQuestions.removeIf(q -> answeredThisSession.contains(q.getId()));
         Collections.shuffle(dueQuestions);
 
+        // Step 2 — cap to daily goal
         if (dueQuestions.size() > dailyGoalQuestions) {
             dueQuestions = new ArrayList<>(dueQuestions.subList(0, dailyGoalQuestions));
         }
 
-        currentStudyQuestions = dueQuestions;
+        currentStudyQuestions = new ArrayList<>(dueQuestions);
 
-        if (currentStudyQuestions.isEmpty()) {
-            currentStudyQuestions = new ArrayList<>(studyService.getNewQuestions(
-                    currentUserId, dailyGoalQuestions, new ArrayList<>(answeredThisSession)
-            ));
-            Collections.shuffle(currentStudyQuestions);
-        } else if (currentStudyQuestions.size() < dailyGoalQuestions) {
+        // Step 3 — top up with new questions if under daily goal
+        if (currentStudyQuestions.size() < dailyGoalQuestions) {
+            List<Integer> excludeIds = new ArrayList<>(answeredThisSession);
+            currentStudyQuestions.stream().map(Question::getId).forEach(excludeIds::add);
+
+            // Fetch ALL new questions (no limit), then filter by topic, then take what we need
+            List<Question> allNewQuestions = new ArrayList<>(
+                    studyService.getNewQuestions(currentUserId, Integer.MAX_VALUE, excludeIds)
+            );
+
+            if (!selectedTopicIds.isEmpty()) {
+                allNewQuestions.removeIf(q -> !selectedTopicIds.contains(q.getTopicId()));
+            }
+
+            Collections.shuffle(allNewQuestions);
+
             int remaining = dailyGoalQuestions - currentStudyQuestions.size();
-            List<Question> topUp = new ArrayList<>(studyService.getNewQuestions(
-                    currentUserId, remaining,
-                    currentStudyQuestions.stream()
-                            .map(Question::getId)
-                            .collect(java.util.stream.Collectors.toList())
-            ));
-            Collections.shuffle(topUp);
-            currentStudyQuestions.addAll(topUp);
+            if (allNewQuestions.size() > remaining) {
+                allNewQuestions = new ArrayList<>(allNewQuestions.subList(0, remaining));
+            }
+
+            currentStudyQuestions.addAll(allNewQuestions);
         }
 
+        // Step 4 — hard cap to daily goal
+        if (currentStudyQuestions.size() > dailyGoalQuestions) {
+            currentStudyQuestions = new ArrayList<>(
+                    currentStudyQuestions.subList(0, dailyGoalQuestions)
+            );
+        }
+
+        // Step 5 — prioritize
         currentStudyQuestions = studyService.getPrioritizedQuestions(
                 currentUserId, currentStudyQuestions
         );
@@ -1754,6 +1970,7 @@ public class MainApp extends Application {
             showNoQuestionsScreen();
             return;
         }
+
         showQuestionCard();
     }
 
@@ -2453,6 +2670,7 @@ public class MainApp extends Application {
             sessionNeedsReload = true;
             showAlert(Alert.AlertType.INFORMATION, "Settings Updated", "Daily Goal Updated",
                     "Your daily goal has been set to " + dailyGoalQuestions + " questions.");
+            showSettings();
         });
 
         Label questionsLabel = new Label("questions/day");
