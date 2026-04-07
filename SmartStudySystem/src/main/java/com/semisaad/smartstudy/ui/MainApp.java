@@ -127,7 +127,7 @@ public class MainApp extends Application {
         brandIcon.setFont(getEmojiFont(40));
         brandIcon.setStyle("-fx-text-fill: white;");
 
-        Label brandName = new Label("Smart Study");
+        Label brandName = new Label("CRAMLESS");
         brandName.setFont(Font.font("System", FontWeight.BOLD, 20));
         brandName.setStyle("-fx-text-fill: white;");
 
@@ -2764,22 +2764,7 @@ public class MainApp extends Application {
         );
         resetBtn.setOnAction(e -> showResetConfirmation());
 
-        Button exportBtn = new Button("↓ Export Data");
-        exportBtn.setPrefHeight(44);
-        exportBtn.setPrefWidth(180);
-        exportBtn.setFont(Font.font("System", FontWeight.BOLD, 14));
-        exportBtn.setStyle(
-                "-fx-background-color: #eff6ff; " +
-                        "-fx-text-fill: #3b82f6; " +
-                        "-fx-border-color: #3b82f6; " +
-                        "-fx-border-width: 2; " +
-                        "-fx-background-radius: 12; " +
-                        "-fx-cursor: hand;"
-        );
-        exportBtn.setOnAction(e -> showAlert(Alert.AlertType.INFORMATION, "Export Data", "Feature Coming Soon!",
-                "Data export functionality will be available in a future update."));
-
-        actionButtons.getChildren().addAll(resetBtn, exportBtn);
+        actionButtons.getChildren().addAll(resetBtn);
 
         settingsScreen.getChildren().addAll(title, profileSection, statsSection, prefsSection, aboutSection, actionButtons);
 
